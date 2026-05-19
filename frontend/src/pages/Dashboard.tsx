@@ -17,6 +17,9 @@ const formatDuration = (seconds: number) => {
 
 const getScanId = (scan: Scan) => scan.id || scan._id;
 
+const chartTextColor = 'var(--text-muted)';
+const chartGridColor = 'var(--border)';
+
 export const Dashboard: React.FC = () => {
   const [scans, setScans] = useState<Scan[]>([]);
   const [recentScans, setRecentScans] = useState<Scan[]>([]);
@@ -158,11 +161,19 @@ export const Dashboard: React.FC = () => {
         <h2>Recent Scans - Metrics Overview</h2>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
+            <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+            <XAxis dataKey="name" tick={{ fill: chartTextColor }} axisLine={{ stroke: chartGridColor }} />
+            <YAxis tick={{ fill: chartTextColor }} axisLine={{ stroke: chartGridColor }} />
+            <Tooltip
+              contentStyle={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                color: 'var(--text)'
+              }}
+              labelStyle={{ color: 'var(--text)' }}
+            />
+            <Legend wrapperStyle={{ color: chartTextColor }} />
             <Bar dataKey="complexity" fill="#8884d8" name="Complexity" />
             <Bar dataKey="loc" fill="#82ca9d" name="LOC (k)" />
             <Bar dataKey="docs" fill="#ffc658" name="Docs %" />
