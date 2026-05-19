@@ -1,0 +1,49 @@
+# Git and local metadata
+.git
+.gitignore
+.dockerignore
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python caches and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Frontend dependencies and builds
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Local scan repositories should be mounted, not baked into images
+repositories/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Docs and local-only files not needed in API/worker images
+README.md
+API.md
+DEPLOYMENT.md
+SETUP.md
+
+# Editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
