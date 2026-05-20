@@ -1,14 +1,15 @@
 """Public GitHub metadata endpoints."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.services.github_service import (
     GitHubError,
     list_public_branches,
     list_public_repositories,
 )
+from app.core.security import get_current_user
 
 
-router = APIRouter(prefix="/github", tags=["github"])
+router = APIRouter(prefix="/github", tags=["github"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/users/{username}/repositories")

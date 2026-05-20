@@ -32,9 +32,116 @@ class FileType(str, Enum):
 class ScanRequest(BaseModel):
     """Request model for initiating a new scan."""
     repository_path: str = Field(..., description="Path to the repository to scan")
-    branch: Optional[str] = Field(default="main", description="Git branch to scan")
+    branch: Optional[str] = Field(default="main", description="Git branch or commit ref to scan")
     incremental: bool = Field(default=False, description="Enable incremental scanning")
     analyzers: Optional[List[str]] = Field(default=None, description="List of analyzers to run")
+    saved_repository_id: Optional[str] = Field(default=None, description="Saved repository identifier")
+
+
+class SavedRepositoryCreate(BaseModel):
+    """Request model for saving a repository."""
+    name: str
+    repository_path: str
+    default_branch: str = "main"
+    team_name: Optional[str] = None
+    labels: List[str] = Field(default_factory=list)
+    tags: List[str] = Field(default_factory=list)
+
+
+class SavedRepositoryUpdate(BaseModel):
+    """Request model for updating a saved repository."""
+    name: Optional[str] = None
+    repository_path: Optional[str] = None
+    default_branch: Optional[str] = None
+    team_name: Optional[str] = None
+    labels: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+
+
+class SavedRepository(BaseModel):
+    """Repository saved by a user or team."""
+    id: Optional[str] = Field(default=None, alias="_id")
+    user_id: str
+    name: str
+    repository_path: str
+    default_branch: str = "main"
+    team_name: Optional[str] = None
+    labels: List[str] = Field(default_factory=list)
+    tags: List[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    model_config = {
+        "populate_by_name": True,
+        "json_encoders": {
+            datetime: lambda v: v.isoformat()
+        }
+    }
+
+
+class ScanComparisonMetric(BaseModel):
+    """Metric delta between two scans."""
+    metric: str
+    base_value: float
+    target_value: float
+    delta: float
+    delta_percent: Optional[float] = None
+
+
+class ScanComparison(BaseModel):
+    """Comparison response for two completed scans."""
+    base_scan_id: str
+    target_scan_id: str
+    repository_path: str
+    base_branch: str
+    target_branch: str
+    metrics: List[ScanComparisonMetric]
+
+
+class User(BaseModel):
+    """Authenticated user account."""
+    id: Optional[str] = Field(default=None, alias="_id")
+    email: str
+    full_name: Optional[str] = None
+    password_hash: Optional[str] = None
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_login_at: Optional[datetime] = None
+
+    model_config = {
+        "populate_by_name": True,
+        "json_encoders": {
+            datetime: lambda v: v.isoformat()
+        }
+    }
+
+
+class UserCreate(BaseModel):
+    """Request model for email/password registration."""
+    email: str
+    password: str = Field(..., min_length=8)
+    full_name: Optional[str] = None
+
+
+class UserLogin(BaseModel):
+    """Request model for email/password login."""
+    email: str
+    password: str
+
+
+class UserPublic(BaseModel):
+    """Public user profile returned to clients."""
+    id: str
+    email: str
+    full_name: Optional[str] = None
+
+
+class TokenResponse(BaseModel):
+    """JWT access token response."""
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    user: UserPublic
 
 
 class FileMetrics(BaseModel):
@@ -150,6 +257,8 @@ class ScanMetrics(BaseModel):
 class Scan(BaseModel):
     """Scan entity representing a repository scan."""
     id: Optional[str] = Field(default=None, alias="_id")
+    user_id: Optional[str] = None
+    saved_repository_id: Optional[str] = None
     repository_path: str
     branch: str = "main"
     status: ScanStatus = ScanStatus.QUEUED

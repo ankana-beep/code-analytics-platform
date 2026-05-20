@@ -1,13 +1,72 @@
 import axios from 'axios';
-import { GitHubBranch, GitHubRepository, Scan, ScanStatus, FileMetric } from '../types';
+import {
+  AuthResponse,
+  AuthUser,
+  GitHubBranch,
+  GitHubRepository,
+  Scan,
+  ScanComparison,
+  ScanStatus,
+  FileMetric,
+  SavedRepository
+} from '../types';
 
 const API_BASE = 'http://localhost:8000/api/v1';
+const TOKEN_KEY = 'auth_token';
+
+axios.interceptors.request.use((config) => {
+  const token = window.localStorage.getItem(TOKEN_KEY);
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export const setAuthToken = (token: string) => {
+  window.localStorage.setItem(TOKEN_KEY, token);
+};
+
+export const clearAuthToken = () => {
+  window.localStorage.removeItem(TOKEN_KEY);
+};
+
+export const getAuthToken = () => window.localStorage.getItem(TOKEN_KEY);
 
 export const api = {
-  async createScan(repositoryPath: string, branch = 'main') {
+  async register(email: string, password: string, fullName?: string) {
+    const { data } = await axios.post<AuthResponse>(`${API_BASE}/auth/register`, {
+      email,
+      password,
+      full_name: fullName || undefined
+    });
+    setAuthToken(data.access_token);
+    return data;
+  },
+
+  async login(email: string, password: string) {
+    const { data } = await axios.post<AuthResponse>(`${API_BASE}/auth/login`, {
+      email,
+      password
+    });
+    setAuthToken(data.access_token);
+    return data;
+  },
+
+  async logout() {
+    await axios.post(`${API_BASE}/auth/logout`);
+    clearAuthToken();
+  },
+
+  async getMe() {
+    const { data } = await axios.get<AuthUser>(`${API_BASE}/auth/me`);
+    return data;
+  },
+
+  async createScan(repositoryPath: string, branch = 'main', savedRepositoryId?: string) {
     const { data } = await axios.post(`${API_BASE}/scans`, {
       repository_path: repositoryPath,
-      branch
+      branch,
+      saved_repository_id: savedRepositoryId
     });
     return data;
   },
@@ -29,11 +88,74 @@ export const api = {
     return data;
   },
 
+  async deleteScan(scanId: string) {
+    await axios.delete(`${API_BASE}/scans/${scanId}`);
+  },
+
   async getScanFiles(scanId: string, skip = 0, limit = 100) {
     const { data } = await axios.get<FileMetric[]>(
       `${API_BASE}/scans/${scanId}/files`,
       { params: { skip, limit } }
     );
+    return data;
+  },
+
+  async compareScans(baseScanId: string, targetScanId: string) {
+    const { data } = await axios.get<ScanComparison>(`${API_BASE}/scans/compare`, {
+      params: {
+        base_scan_id: baseScanId,
+        target_scan_id: targetScanId
+      }
+    });
+    return data;
+  },
+
+  async getSavedRepositories(params?: { team_name?: string; tag?: string; label?: string }) {
+    const { data } = await axios.get<SavedRepository[]>(`${API_BASE}/repositories`, { params });
+    return data;
+  },
+
+  async createSavedRepository(input: {
+    name: string;
+    repository_path: string;
+    default_branch?: string;
+    team_name?: string;
+    labels?: string[];
+    tags?: string[];
+  }) {
+    const { data } = await axios.post<SavedRepository>(`${API_BASE}/repositories`, input);
+    return data;
+  },
+
+  async updateSavedRepository(repositoryId: string, input: Partial<{
+    name: string;
+    repository_path: string;
+    default_branch: string;
+    team_name: string;
+    labels: string[];
+    tags: string[];
+  }>) {
+    const { data } = await axios.patch<SavedRepository>(`${API_BASE}/repositories/${repositoryId}`, input);
+    return data;
+  },
+
+  async deleteSavedRepository(repositoryId: string) {
+    await axios.delete(`${API_BASE}/repositories/${repositoryId}`);
+  },
+
+  async getSavedRepositoryScans(repositoryId: string, branch?: string) {
+    const { data } = await axios.get<Scan[]>(`${API_BASE}/repositories/${repositoryId}/scans`, {
+      params: { branch: branch || undefined }
+    });
+    return data;
+  },
+
+  async scanSavedRepository(repository: SavedRepository, branch?: string) {
+    const { data } = await axios.post(`${API_BASE}/repositories/${repository.id || repository._id}/scans`, {
+      repository_path: repository.repository_path,
+      branch: branch || repository.default_branch,
+      saved_repository_id: repository.id || repository._id
+    });
     return data;
   },
 

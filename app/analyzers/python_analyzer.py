@@ -214,9 +214,9 @@ class PythonAnalyzer:
             visitor: AST visitor with collected information
             
         Returns:
-            Percentage of functions/classes with docstrings (0-100)
+            Percentage of functions/classes/methods with docstrings (0-100)
         """
-        total = visitor.function_count + visitor.class_count
+        total = visitor.function_count + visitor.class_count + visitor.method_count
         
         if total == 0:
             return 0.0

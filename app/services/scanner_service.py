@@ -579,12 +579,12 @@ class ScannerService:
         
         # Docstring coverage
         total_documentable = sum(
-            m.functions + m.classes
+            m.functions + m.classes + m.methods
             for m in file_metrics
         )
         if total_documentable > 0:
             weighted_coverage = sum(
-                m.docstring_coverage * (m.functions + m.classes)
+                m.docstring_coverage * (m.functions + m.classes + m.methods)
                 for m in file_metrics
             )
             metrics.docstring_coverage = weighted_coverage / total_documentable

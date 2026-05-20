@@ -53,6 +53,10 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - LOG_LEVEL=INFO
       - DEBUG=false
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-secret-in-production}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      - SESSION_TTL=${SESSION_TTL:-3600}
     volumes:
       - ./repositories:/repositories:ro  # Mount for scanning repositories
     depends_on:

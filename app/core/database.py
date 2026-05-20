@@ -62,6 +62,15 @@ class MongoDBManager:
         await self.database.metrics.create_index("scan_id")
         await self.database.metrics.create_index("repository_path")
         await self.database.metrics.create_index("timestamp")
+
+        # Users collection indexes
+        await self.database.users.create_index("email", unique=True)
+
+        # Saved repositories indexes
+        await self.database.saved_repositories.create_index("user_id")
+        await self.database.saved_repositories.create_index([("user_id", 1), ("repository_path", 1)], unique=True)
+        await self.database.saved_repositories.create_index([("user_id", 1), ("team_name", 1)])
+        await self.database.saved_repositories.create_index([("user_id", 1), ("tags", 1)])
         
         logger.info("Database indexes created successfully")
     

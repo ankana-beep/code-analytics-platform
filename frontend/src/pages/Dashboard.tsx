@@ -16,6 +16,7 @@ const formatDuration = (seconds: number) => {
 };
 
 const getScanId = (scan: Scan) => scan.id || scan._id;
+const isScanId = (scanId: string | undefined): scanId is string => Boolean(scanId);
 
 const chartTextColor = 'var(--text-muted)';
 const chartGridColor = 'var(--border)';
@@ -25,6 +26,10 @@ export const Dashboard: React.FC = () => {
   const [recentScans, setRecentScans] = useState<Scan[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoadingScans, setIsLoadingScans] = useState(false);
+  const [deletingScanId, setDeletingScanId] = useState<string | null>(null);
+  const [isDeletingSelected, setIsDeletingSelected] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [selectedScanIds, setSelectedScanIds] = useState<string[]>([]);
   const [stats, setStats] = useState({
     total: 0,
     completed: 0,
@@ -66,6 +71,10 @@ export const Dashboard: React.FC = () => {
 
     setScans(summaryData);
     setRecentScans(pageData);
+    setSelectedScanIds(prevSelectedIds => {
+      const pageScanIds = new Set(pageData.map(getScanId).filter(isScanId));
+      return prevSelectedIds.filter(scanId => pageScanIds.has(scanId));
+    });
     setStats({
       total: summaryData.length,
       completed: summaryData.filter(s => s.status === 'completed').length,
@@ -94,6 +103,72 @@ export const Dashboard: React.FC = () => {
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+  };
+
+  const currentPageScanIds = recentScans.map(getScanId).filter(isScanId);
+  const selectedCount = selectedScanIds.length;
+  const allPageScansSelected =
+    currentPageScanIds.length > 0 &&
+    currentPageScanIds.every(scanId => selectedScanIds.includes(scanId));
+
+  const handleSelectAllScans = (checked: boolean) => {
+    setSelectedScanIds(checked ? currentPageScanIds : []);
+  };
+
+  const handleSelectScan = (scanId: string, checked: boolean) => {
+    setSelectedScanIds(prevSelectedIds => (
+      checked
+        ? Array.from(new Set([...prevSelectedIds, scanId]))
+        : prevSelectedIds.filter(selectedScanId => selectedScanId !== scanId)
+    ));
+  };
+
+  const handleDeleteScan = async (scan: Scan) => {
+    const scanId = getScanId(scan);
+    if (!scanId) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Remove ${scan.repository_path} from recent scans?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingScanId(scanId);
+    setDeleteError(null);
+
+    try {
+      await api.deleteScan(scanId);
+      await loadScans(currentPage);
+    } catch {
+      setDeleteError('Failed to delete repository scan. Please try again.');
+    } finally {
+      setDeletingScanId(null);
+    }
+  };
+
+  const handleDeleteSelectedScans = async () => {
+    if (selectedScanIds.length === 0) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Remove ${selectedScanIds.length} selected repository scans?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingSelected(true);
+    setDeleteError(null);
+
+    try {
+      await Promise.all(selectedScanIds.map(scanId => api.deleteScan(scanId)));
+      setSelectedScanIds([]);
+      await loadScans(currentPage);
+    } catch {
+      setDeleteError('Failed to delete selected repository scans. Please try again.');
+    } finally {
+      setIsDeletingSelected(false);
+    }
   };
 
   const chartData = scans
@@ -194,6 +269,14 @@ export const Dashboard: React.FC = () => {
           <div className="pagination-controls">
             <button
               type="button"
+              className="btn-danger"
+              onClick={handleDeleteSelectedScans}
+              disabled={selectedCount === 0 || isDeletingSelected}
+            >
+              {isDeletingSelected ? 'Deleting...' : `Delete Selected (${selectedCount})`}
+            </button>
+            <button
+              type="button"
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1 || isLoadingScans}
             >
@@ -209,9 +292,19 @@ export const Dashboard: React.FC = () => {
             </button>
           </div>
         </div>
+        {deleteError && <p className="error-message">{deleteError}</p>}
         <table>
           <thead>
             <tr>
+              <th className="select-cell">
+                <input
+                  type="checkbox"
+                  aria-label="Select all recent scans"
+                  checked={allPageScansSelected}
+                  onChange={(e) => handleSelectAllScans(e.target.checked)}
+                  disabled={currentPageScanIds.length === 0 || isDeletingSelected}
+                />
+              </th>
               <th>Repository</th>
               <th>Status</th>
               <th>Progress</th>
@@ -228,6 +321,17 @@ export const Dashboard: React.FC = () => {
 
               return (
               <tr key={scanId}>
+                <td className="select-cell">
+                  {scanId && (
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${scan.repository_path}`}
+                      checked={selectedScanIds.includes(scanId)}
+                      onChange={(e) => handleSelectScan(scanId, e.target.checked)}
+                      disabled={deletingScanId === scanId || isDeletingSelected}
+                    />
+                  )}
+                </td>
                 <td>{scan.repository_path}</td>
                 <td>
                   <span className={`status ${scan.status}`}>
@@ -244,19 +348,28 @@ export const Dashboard: React.FC = () => {
                 </td>
                 <td>{new Date(scan.created_at).toLocaleString()}</td>
                 <td>
-                  <button
-                    disabled={!scanId}
-                    onClick={() => scanId && navigate(`/scans/${scanId}`)}
-                  >
-                    View
-                  </button>
+                  <div className="table-actions">
+                    <button
+                      disabled={!scanId || deletingScanId === scanId}
+                      onClick={() => scanId && navigate(`/scans/${scanId}`)}
+                    >
+                      View
+                    </button>
+                    <button
+                      className="btn-danger"
+                      disabled={!scanId || deletingScanId === scanId || isDeletingSelected}
+                      onClick={() => handleDeleteScan(scan)}
+                    >
+                      {deletingScanId === scanId ? 'Deleting...' : 'Delete'}
+                    </button>
+                  </div>
                 </td>
               </tr>
               );
             })}
             {!isLoadingScans && recentScans.length === 0 && (
               <tr>
-                <td colSpan={8}>No scans found.</td>
+                <td colSpan={9}>No scans found.</td>
               </tr>
             )}
           </tbody>

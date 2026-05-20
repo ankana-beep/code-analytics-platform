@@ -2,8 +2,7 @@
 Application configuration and settings management.
 Uses pydantic-settings for environment-based configuration.
 """
-from typing import Optional
-from pydantic import Field, MongoDsn, RedisDsn
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -70,6 +69,14 @@ class Settings(BaseSettings):
     rate_limit_burst: int = 200
     
     # Security
+    auth_enabled: bool = True
+    jwt_secret_key: str = Field(
+        default="change-this-secret-in-production",
+        description="Secret key used to sign JWT access tokens"
+    )
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60
+    session_ttl: int = 3600
     allowed_extensions: list[str] = Field(
         default_factory=lambda: [
             ".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go", ".rb", ".php",

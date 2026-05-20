@@ -218,6 +218,49 @@ class RedisManager:
         except RedisError as e:
             logger.error(f"Failed to set cache: {str(e)}")
 
+    async def set_session(self, token_id: str, user_id: str, ttl: Optional[int] = None):
+        """Store an authenticated session keyed by JWT id."""
+        try:
+            await self.redis.setex(
+                f"session:{token_id}",
+                ttl or settings.session_ttl,
+                user_id
+            )
+        except RedisError as e:
+            logger.error(f"Failed to set session: {str(e)}")
+
+    async def get_session(self, token_id: str) -> Optional[str]:
+        """Get the user id for an active JWT session."""
+        try:
+            return await self.redis.get(f"session:{token_id}")
+        except RedisError:
+            return None
+
+    async def delete_session(self, token_id: str):
+        """Delete a JWT session."""
+        try:
+            await self.redis.delete(f"session:{token_id}")
+        except RedisError as e:
+            logger.error(f"Failed to delete session: {str(e)}")
+
+    async def blacklist_token(self, token_id: str, ttl: Optional[int] = None):
+        """Add a JWT id to the token blacklist."""
+        try:
+            await self.redis.setex(
+                f"token_blacklist:{token_id}",
+                ttl or settings.session_ttl,
+                "1"
+            )
+        except RedisError as e:
+            logger.error(f"Failed to blacklist token: {str(e)}")
+
+    async def is_token_blacklisted(self, token_id: str) -> bool:
+        """Return whether a JWT id has been revoked."""
+        try:
+            return bool(await self.redis.exists(f"token_blacklist:{token_id}"))
+        except RedisError:
+            return True
+
 
 # Global Redis manager instance
 redis_manager = RedisManager()

@@ -14,7 +14,7 @@ from app.core.logging import logger
 from app.core.database import mongodb_manager
 from app.core.redis import redis_manager
 from app.core.metrics import metrics
-from app.api.v1 import github, scans, health, websocket
+from app.api.v1 import auth, github, repositories, scans, health, websocket
 
 
 @asynccontextmanager
@@ -177,7 +177,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include routers
 app.include_router(health.router, prefix=settings.api_v1_prefix)
+app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(github.router, prefix=settings.api_v1_prefix)
+app.include_router(repositories.router, prefix=settings.api_v1_prefix)
 app.include_router(scans.router, prefix=settings.api_v1_prefix)
 app.include_router(websocket.router)
 

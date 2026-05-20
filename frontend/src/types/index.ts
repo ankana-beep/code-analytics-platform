@@ -1,6 +1,8 @@
 export interface Scan {
   id: string;
   _id?: string;
+  user_id?: string;
+  saved_repository_id?: string;
   repository_path: string;
   branch: string;
   status: 'queued' | 'processing' | 'completed' | 'failed';
@@ -41,6 +43,50 @@ export interface GitHubRepository {
 export interface GitHubBranch {
   name: string;
   sha: string;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  full_name?: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  user: AuthUser;
+}
+
+export interface SavedRepository {
+  id: string;
+  _id?: string;
+  user_id: string;
+  name: string;
+  repository_path: string;
+  default_branch: string;
+  team_name?: string;
+  labels: string[];
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScanComparisonMetric {
+  metric: string;
+  base_value: number;
+  target_value: number;
+  delta: number;
+  delta_percent?: number;
+}
+
+export interface ScanComparison {
+  base_scan_id: string;
+  target_scan_id: string;
+  repository_path: string;
+  base_branch: string;
+  target_branch: string;
+  metrics: ScanComparisonMetric[];
 }
 
 export interface ScanMetrics {
