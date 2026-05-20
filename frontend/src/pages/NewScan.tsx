@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { GitHubBranch, GitHubRepository, ScanStatus } from '../types';
+import { ScanProgressTimeline } from '../components/ScanProgressTimeline';
 
 type GitHubInput =
   | { type: 'repo'; owner: string; repo: string; htmlUrl: string }
@@ -72,6 +73,7 @@ export const NewScan: React.FC = () => {
   const displayProgress = useMemo(() => {
     if (progress) {
       return {
+        status: scanStatus?.status || 'processing',
         progress: progress.progress,
         files_processed: progress.files_processed,
         files_total: progress.files_total,
@@ -303,32 +305,14 @@ export const NewScan: React.FC = () => {
 
           {displayProgress ? (
             <>
-              <div className="progress-bar">
-                <div
-                  className="progress-fill"
-                  style={{ width: `${displayProgress.progress}%` }}
-                />
-              </div>
-
-              <div className="progress-info">
-                <p>
-                  <strong>{displayProgress.progress.toFixed(1)}%</strong> complete
-                </p>
-                <p>
-                  {displayProgress.files_processed} / {displayProgress.files_total} files processed
-                </p>
-                {displayProgress.current_file && (
-                  <p className="current-file">
-                    Current: {displayProgress.current_file}
-                  </p>
-                )}
-              </div>
-
-              {scanStatus?.status === 'failed' && (
-                <p className="error-message">
-                  {scanStatus.error_message || 'The scan failed.'}
-                </p>
-              )}
+              <ScanProgressTimeline
+                status={displayProgress.status}
+                progress={displayProgress.progress}
+                filesProcessed={displayProgress.files_processed}
+                filesTotal={displayProgress.files_total}
+                currentFile={displayProgress.current_file}
+                errorMessage={scanStatus?.status === 'failed' ? scanStatus.error_message || 'The scan failed.' : undefined}
+              />
 
               {scanStatus?.status === 'completed' && (
                 <button

@@ -98,6 +98,30 @@ class ScanComparison(BaseModel):
     metrics: List[ScanComparisonMetric]
 
 
+class ShareReportResponse(BaseModel):
+    """Response after creating a shareable report."""
+    scan_id: str
+    share_token: str
+    api_url: str
+
+
+class ExecutiveSummary(BaseModel):
+    """Portfolio-level executive summary."""
+    total_scans: int
+    completed_scans: int
+    failed_scans: int
+    active_scans: int
+    repositories_scanned: int
+    total_files: int
+    total_lines_of_code: int
+    avg_complexity: float
+    avg_doc_coverage: float
+    total_todos: int
+    total_fixmes: int
+    total_dependencies: int
+    avg_scan_duration: float
+
+
 class User(BaseModel):
     """Authenticated user account."""
     id: Optional[str] = Field(default=None, alias="_id")
@@ -133,6 +157,11 @@ class UserPublic(BaseModel):
     """Public user profile returned to clients."""
     id: str
     email: str
+    full_name: Optional[str] = None
+
+
+class UserUpdate(BaseModel):
+    """Request model for profile settings updates."""
     full_name: Optional[str] = None
 
 
@@ -276,6 +305,7 @@ class Scan(BaseModel):
     # Error handling
     error_message: Optional[str] = None
     retry_count: int = 0
+    share_token: Optional[str] = None
     
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)

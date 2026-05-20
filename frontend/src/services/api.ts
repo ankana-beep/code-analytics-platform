@@ -2,12 +2,14 @@ import axios from 'axios';
 import {
   AuthResponse,
   AuthUser,
+  ExecutiveSummary,
   GitHubBranch,
   GitHubRepository,
   Scan,
   ScanComparison,
   ScanStatus,
   FileMetric,
+  ShareReportResponse,
   SavedRepository
 } from '../types';
 
@@ -31,6 +33,22 @@ export const clearAuthToken = () => {
 };
 
 export const getAuthToken = () => window.localStorage.getItem(TOKEN_KEY);
+
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
+const filenameFromDisposition = (disposition: string | undefined, fallback: string) => {
+  const match = disposition?.match(/filename="?(?<filename>[^";]+)"?/);
+  return match?.groups?.filename || fallback;
+};
 
 export const api = {
   async register(email: string, password: string, fullName?: string) {
@@ -59,6 +77,11 @@ export const api = {
 
   async getMe() {
     const { data } = await axios.get<AuthUser>(`${API_BASE}/auth/me`);
+    return data;
+  },
+
+  async updateMe(input: { full_name?: string }) {
+    const { data } = await axios.patch<AuthUser>(`${API_BASE}/auth/me`, input);
     return data;
   },
 
@@ -107,6 +130,31 @@ export const api = {
         target_scan_id: targetScanId
       }
     });
+    return data;
+  },
+
+  async getExecutiveSummary() {
+    const { data } = await axios.get<ExecutiveSummary>(`${API_BASE}/reports/executive-summary`);
+    return data;
+  },
+
+  async exportScan(scanId: string, format: 'csv' | 'pdf') {
+    const response = await axios.get<Blob>(`${API_BASE}/reports/scans/${scanId}/export.${format}`, {
+      responseType: 'blob'
+    });
+    downloadBlob(
+      response.data,
+      filenameFromDisposition(response.headers['content-disposition'], `scan-${scanId}.${format}`)
+    );
+  },
+
+  async createShareReport(scanId: string) {
+    const { data } = await axios.post<ShareReportResponse>(`${API_BASE}/reports/scans/${scanId}/share`);
+    return data;
+  },
+
+  async getSharedReport(shareToken: string) {
+    const { data } = await axios.get<Scan>(`${API_BASE}/reports/share/${shareToken}`);
     return data;
   },
 

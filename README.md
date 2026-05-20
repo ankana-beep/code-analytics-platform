@@ -1,44 +1,157 @@
 # Code Analytics Platform
 
-Production-grade distributed code analytics platform using FastAPI, MongoDB, Redis, Docker, and a React frontend.
+Production-style code analytics platform for scanning public GitHub repositories, tracking repository quality over time, comparing scans, and exporting shareable reports.
 
-## Features
+The system uses a React frontend, FastAPI backend, MongoDB persistence, Redis-backed queues/sessions/cache, and scalable background workers.
 
-- Async FastAPI backend with Motor MongoDB driver
-- Redis job queue with background workers
-- Public GitHub repository scanning by username, profile URL, or repository URL
-- Branch discovery before scanning
-- Repository branch archive download without cloning public repos
-- Real-time scan progress with WebSocket updates
-- Dashboard with scan pagination and aggregate metrics
-- Detailed metrics for code size, comments, complexity, maintainability, dependencies, tests, folders, and issues
-- Prometheus metrics for observability
-- Dockerized services for local and production-style runs
+## Core Features
+
+- Email/password authentication with bcrypt password hashing
+- JWT access tokens with Redis-backed sessions and token blacklist logout
+- Public GitHub repository lookup by username, profile URL, or repository URL
+- Branch discovery and branch/commit-ref scanning
+- Redis job queue with background worker processing
+- Real-time scan progress through WebSockets
+- Responsive executive dashboard with search, filters, skeletons, empty states, and bulk actions
+- Saved repositories per user with team grouping, labels, and tags
+- Scan history by branch or commit ref
+- Compare completed scans from the same repository
+- Detailed code metrics for files, folders, complexity, maintainability, dependencies, tests, TODOs, and FIXMEs
+- CSV and PDF scan exports
+- Tokenized shareable public scan reports
+- Prometheus metrics, health checks, Docker Compose, optional Grafana
+
+## Technology Stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | React, TypeScript, Vite, Recharts, Axios |
+| API | FastAPI, Pydantic, Uvicorn |
+| Auth | JWT, bcrypt, Redis sessions/token blacklist |
+| Database | MongoDB with Motor async driver |
+| Queue/Cache | Redis |
+| Workers | Python background scan worker |
+| Reports | CSV, ReportLab PDF |
+| Observability | Prometheus metrics, health endpoints, optional Grafana |
+| Deployment | Docker, Docker Compose |
+
+## Architecture
+
+```text
++---------------------------------------------------------------------+
+|                            React Frontend                           |
+|                                                                     |
+|  AuthPage        Dashboard        Repositories       ScanDetail      |
+|  Settings        NewScan          SharedReport       Timeline UI     |
++---------------+---------------------------+-------------------------+
+                | REST API                  | WebSocket progress
+                v                           v
++---------------------------------------------------------------------+
+|                              FastAPI API                            |
+|                                                                     |
+|  /auth          login/register/me/logout                            |
+|  /github        public GitHub metadata                              |
+|  /repositories  saved repos, labels, tags, scan history             |
+|  /scans         create/list/detail/delete/retry/compare             |
+|  /reports       executive summary, CSV/PDF export, share links      |
+|  /health        service health and readiness                        |
++---------------+--------------------+---------------------+----------+
+                |                    |                     |
+                v                    v                     v
++----------------------+  +----------------------+  +-----------------+
+|       MongoDB        |  |        Redis         |  |  GitHub Public  |
+|                      |  |                      |  |      API        |
+| users                |  | scan_jobs queue      |  | users/repos     |
+| scans                |  | sessions             |  | branches        |
+| files                |  | token blacklist      |  | tarball archive |
+| saved_repositories   |  | cache                |  +-----------------+
+| metrics              |  | pub/sub progress     |
++----------------------+  +----------+-----------+
+                                      |
+                                      v
+                         +--------------------------+
+                         |      Worker Pool         |
+                         |                          |
+                         | downloads repo archive   |
+                         | discovers supported files|
+                         | runs analyzers           |
+                         | stores metrics           |
+                         | publishes progress       |
+                         +--------------------------+
+```
+
+## Runtime Flow
+
+### Authentication Flow
+
+```text
+Register/Login
+   |
+   +-- bcrypt hashes/verifies password
+   |
+   +-- FastAPI issues JWT access token
+   |
+   +-- Redis stores token session by JWT id
+   |
+   +-- Frontend sends Authorization: Bearer <token>
+
+Logout
+   |
+   +-- Redis deletes session
+   +-- Redis blacklists JWT id until token expiry
+```
+
+### Scan Flow
+
+```text
+User selects GitHub repository + branch/ref
+   |
+   +-- FastAPI creates scan document in MongoDB
+   +-- FastAPI enqueues job in Redis
+   +-- Worker downloads GitHub tarball
+   +-- Worker discovers and analyzes files
+   +-- Worker stores file and aggregate metrics in MongoDB
+   +-- Worker publishes progress over Redis/WebSocket
+```
+
+### Reporting Flow
+
+```text
+Completed scan
+   |
+   +-- Export CSV with summary + file metrics
+   +-- Export PDF summary report
+   +-- Create share token
+   +-- Public /shared/:token page renders read-only report
+```
 
 ## Quick Start
 
 ```bash
-# Start all services
-./start.sh
-
-# Or manually
-docker-compose up -d
-
-# View logs
-make logs
-
-# Scale workers
-make scale-workers N=5
+docker compose up --build
 ```
 
 Access:
 
-- Frontend Dashboard: http://localhost:3000
+- Frontend: http://localhost:3000
 - API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+- API docs: http://localhost:8000/docs
 - Health: http://localhost:8000/api/v1/health
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3001
 
-For local frontend development:
+Default Grafana password in `docker-compose.yml` is `admin`.
+
+## Local Development
+
+Backend:
+
+```bash
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Frontend:
 
 ```bash
 cd frontend
@@ -46,79 +159,123 @@ npm install
 npm run dev -- --host 127.0.0.1
 ```
 
-Development frontend URL:
+Frontend development URL:
 
 ```text
-http://127.0.0.1:5173/
+http://127.0.0.1:5173
 ```
 
-## GitHub Scan Flow
+## Configuration
 
-The frontend scan flow is GitHub-first.
+Create a local `.env` from `.env.example`.
 
-1. Open the frontend dashboard.
-2. Go to `New Scan`.
-3. Enter one of these public GitHub inputs:
-   - Username: `octocat`
-   - Profile URL: `https://github.com/octocat`
-   - Repository URL: `https://github.com/owner/repo`
-4. Click `Find Branches`.
-5. If you entered a username or profile URL, choose one public repository from the list.
-6. Choose a branch from the branch dropdown.
-7. Click `Start Scan`.
-8. Watch real-time scan progress.
-9. Click `View Results` after completion.
+Important settings:
 
-Only public GitHub users and repositories are supported. Private or nonexistent resources return a validation error.
+```env
+MONGODB_URL=mongodb://mongodb:27017
+MONGODB_DATABASE=code_analytics
+REDIS_URL=redis://redis:6379/0
 
-## What Gets Analyzed
+JWT_SECRET_KEY=replace-with-a-long-random-secret
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+SESSION_TTL=3600
 
-### File-Level Metrics
+CACHE_ENABLED=true
+CACHE_TTL=3600
 
-- Lines of code
-- Comment lines
-- Blank lines
-- File size
-- Docstring coverage
-- Cyclomatic complexity
-- Cognitive complexity
-- Maintainability index
-- TODO and FIXME markers
-- Test file detection
-- Dependencies
+SCAN_MAX_FILE_SIZE=10485760
+SCAN_CONCURRENCY_LIMIT=50
+WORKER_POOL_SIZE=4
+WORKER_CONCURRENCY=10
+```
 
-### Project-Level Metrics
+For production, replace `JWT_SECRET_KEY`, lock down `CORS_ORIGINS`, and do not use default secrets.
 
-- Total files
-- Total lines of code
-- Total comments and blank lines
-- File type distribution
-- Folder statistics
-- Dependency usage
-- Duplicate files
-- Test metrics
-- Average and maximum complexity
-- Maintainability score
-- Scan duration
+## Main Frontend Screens
 
-## API Usage
+- `AuthPage`: login/register
+- `Dashboard`: executive summary, recent scans, filters, bulk delete, charts
+- `NewScan`: GitHub lookup, branch discovery, scan start, progress timeline
+- `Repositories`: saved repositories, team field, labels/tags, scan history, scan comparison
+- `ScanDetail`: metrics, charts, file details, CSV/PDF export, share report
+- `SharedReport`: public read-only scan report by token
+- `Settings`: user profile settings
 
-### List Public Repositories For A GitHub User
+## API Overview
+
+Most API routes require:
+
+```http
+Authorization: Bearer <jwt>
+```
+
+### Auth
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| POST | `/api/v1/auth/register` | Create account and return token |
+| POST | `/api/v1/auth/login` | Login and return token |
+| POST | `/api/v1/auth/logout` | Revoke current session |
+| GET | `/api/v1/auth/me` | Current user profile |
+| PATCH | `/api/v1/auth/me` | Update profile |
+
+### GitHub Metadata
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/api/v1/github/users/{username}/repositories` | List public repositories |
+| GET | `/api/v1/github/repositories/{owner}/{repo}/branches` | List public branches |
+
+### Scans
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| POST | `/api/v1/scans` | Create scan |
+| GET | `/api/v1/scans` | List scans with filters |
+| GET | `/api/v1/scans/{scan_id}` | Get scan detail |
+| GET | `/api/v1/scans/{scan_id}/status` | Get scan progress/status |
+| GET | `/api/v1/scans/{scan_id}/files` | List file metrics |
+| GET | `/api/v1/scans/compare` | Compare two completed scans |
+| DELETE | `/api/v1/scans/{scan_id}` | Delete scan and metrics |
+| POST | `/api/v1/scans/{scan_id}/retry` | Retry failed scan |
+
+### Saved Repositories
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| POST | `/api/v1/repositories` | Save repository |
+| GET | `/api/v1/repositories` | List saved repositories |
+| PATCH | `/api/v1/repositories/{repository_id}` | Update labels/tags/team/default branch |
+| DELETE | `/api/v1/repositories/{repository_id}` | Delete saved repository |
+| GET | `/api/v1/repositories/{repository_id}/scans` | Branch/ref scan history |
+| POST | `/api/v1/repositories/{repository_id}/scans` | Start scan for saved repo |
+
+### Reports
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/api/v1/reports/executive-summary` | Dashboard summary |
+| GET | `/api/v1/reports/scans/{scan_id}/export.csv` | CSV export |
+| GET | `/api/v1/reports/scans/{scan_id}/export.pdf` | PDF export |
+| POST | `/api/v1/reports/scans/{scan_id}/share` | Create share token |
+| GET | `/api/v1/reports/share/{share_token}` | Public shared report data |
+
+## Example API Calls
+
+Register:
 
 ```bash
-curl http://localhost:8000/api/v1/github/users/octocat/repositories
+curl -X POST http://localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"dev@example.com","password":"password123","full_name":"Dev User"}'
 ```
 
-### List Branches For A Public GitHub Repository
-
-```bash
-curl http://localhost:8000/api/v1/github/repositories/octocat/Hello-World/branches
-```
-
-### Create Scan For A Public GitHub Repository
+Create a scan:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/scans \
+  -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
     "repository_path": "https://github.com/octocat/Hello-World",
@@ -126,214 +283,157 @@ curl -X POST http://localhost:8000/api/v1/scans \
   }'
 ```
 
-The backend downloads the selected public branch archive from GitHub and scans it without cloning the repository.
-
-### Get Scan Results
+Compare scans:
 
 ```bash
-curl http://localhost:8000/api/v1/scans/{scan_id}
+curl "http://localhost:8000/api/v1/scans/compare?base_scan_id=<base>&target_scan_id=<target>" \
+  -H "Authorization: Bearer <token>"
 ```
 
-### WebSocket Progress
-
-```javascript
-const ws = new WebSocket("ws://localhost:8000/ws/scans/{scan_id}/progress");
-ws.onmessage = (event) => console.log(JSON.parse(event.data));
-```
-
-## Architecture
-
-```text
-Client / React Frontend
-        |
-        v
-FastAPI API
-        |
-        +--> GitHub public metadata and branch lookup
-        |
-        +--> MongoDB stores scans and metrics
-        |
-        +--> Redis queues scan jobs
-                  |
-                  v
-              Worker Pool
-                  |
-                  +--> Downloads public GitHub branch archive
-                  +--> Analyzes files
-                  +--> Stores metrics
-                  +--> Publishes WebSocket progress
-```
-
-## Configuration
-
-Create or edit `.env` from `.env.example`.
+Export PDF:
 
 ```bash
-# Worker settings
-WORKER_POOL_SIZE=4
-WORKER_CONCURRENCY=10
-
-# Scanning
-SCAN_CONCURRENCY_LIMIT=50
-SCAN_MAX_FILE_SIZE=10485760
-
-# Cache
-CACHE_ENABLED=true
-CACHE_TTL=3600
+curl -L http://localhost:8000/api/v1/reports/scans/<scan_id>/export.pdf \
+  -H "Authorization: Bearer <token>" \
+  -o scan-report.pdf
 ```
 
-## Development
+## What Gets Analyzed
 
-### Project Structure
+File-level:
+
+- Lines of code, comments, blanks, file size
+- Docstring coverage
+- Cyclomatic and cognitive complexity
+- Maintainability index
+- TODO and FIXME markers
+- Dependency references
+- Test file detection
+
+Project-level:
+
+- File count and LOC totals
+- File type distribution
+- Folder statistics
+- Dependency usage
+- Duplicate file detection
+- Test metrics
+- Average and maximum complexity
+- Maintainability score
+- Scan duration
+
+Supported file extensions are configured in `app/core/config.py`.
+
+## Project Structure
 
 ```text
 app/
-  api/v1/           API endpoints
-  core/             Configuration, DB, Redis, metrics
-  domain/           Pydantic domain models
-  services/         Business logic
-  repositories/     Data access layer
-  workers/          Background workers
-  analyzers/        Code analyzers
-  main.py           FastAPI application
+  api/v1/
+    auth.py             Auth endpoints
+    github.py           GitHub metadata endpoints
+    repositories.py     Saved repository endpoints
+    reports.py          Export/share/summary endpoints
+    scans.py            Scan CRUD, status, compare
+    websocket.py        Scan progress WebSocket
+  analyzers/            Python, JavaScript, config analyzers
+  core/                 Config, database, Redis, security, metrics
+  domain/models.py      Pydantic domain models
+  repositories/         MongoDB data access
+  services/             GitHub and scanning services
+  workers/              Background scan worker
+  main.py               FastAPI app composition
 
-frontend/
-  src/pages/        React pages
-  src/services/     API client
-  src/types/        TypeScript contracts
+frontend/src/
+  components/           Shared UI components
+  hooks/                WebSocket hook
+  pages/                App screens
+  services/api.ts       Typed API client
+  types/index.ts        TypeScript contracts
+  App.tsx               Routing, theme, auth gate
 ```
 
-### Backend Check
+## Data Model Overview
+
+MongoDB collections:
+
+- `users`: account records, password hashes, profile data
+- `scans`: scan metadata, status, aggregate metrics, share token
+- `files`: file-level metrics for each scan
+- `metrics`: reserved/indexed metrics collection
+- `saved_repositories`: user-owned repository records with labels/tags/team
+
+Redis responsibilities:
+
+- `scan_jobs`: worker queue
+- `session:{jti}`: active auth sessions
+- `token_blacklist:{jti}`: revoked JWT ids
+- `cache:*`: scan cache entries
+- `scan:{scan_id}:progress`: pub/sub progress channel
+
+## Verification
+
+Backend syntax check:
 
 ```bash
 python -m compileall app
 ```
 
-### Frontend Build
+Frontend production build:
 
 ```bash
 cd frontend
-npm install
 npm run build
 ```
 
-## Pushing This Project To GitHub
-
-Use these steps when you are ready to publish the project to your GitHub account.
-
-### 1. Check Whether This Folder Is Already A Git Repo
+Docker Compose validation:
 
 ```bash
-git status
+docker compose config
 ```
 
-If you see `fatal: not a git repository`, initialize git:
+## Operations
+
+Useful commands:
 
 ```bash
-git init
+docker compose ps
+docker compose logs -f api
+docker compose logs -f worker
+docker compose exec redis redis-cli LLEN scan_jobs
+docker compose exec mongodb mongosh code_analytics
 ```
 
-### 2. Add A `.gitignore`
-
-Make sure generated files and local secrets are ignored before committing.
-
-Recommended entries:
-
-```gitignore
-.env
-__pycache__/
-*.pyc
-.pytest_cache/
-frontend/node_modules/
-frontend/dist/
-repositories/
-```
-
-### 3. Review Changes
+Scale workers:
 
 ```bash
-git status
-git diff
+docker compose up --scale worker=4
 ```
 
-### 4. Stage Files
+## Limitations And Next Steps
 
-```bash
-git add .
-```
+Current limitations:
 
-### 5. Commit
+- GitHub scanning currently targets public repositories.
+- Team support is a grouping field, not full team membership/RBAC.
+- Shared reports are token-based and do not yet expire automatically.
+- The dashboard loads the most recent 100 scans for summaries.
 
-```bash
-git commit -m "Add GitHub branch-based code scanning"
-```
+Good production next steps:
 
-### 6. Create A GitHub Repository
-
-1. Go to https://github.com/new
-2. Enter a repository name.
-3. Choose `Public` or `Private`.
-4. Do not initialize with README, `.gitignore`, or license if this local project already has them.
-5. Click `Create repository`.
-
-### 7. Connect Local Repo To GitHub
-
-Replace `YOUR_USERNAME` and `YOUR_REPO_NAME`.
-
-```bash
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-```
-
-If `origin` already exists, update it:
-
-```bash
-git remote set-url origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-```
-
-### 8. Push
-
-```bash
-git push -u origin main
-```
-
-### 9. Future Updates
-
-After making more changes:
-
-```bash
-git status
-git add .
-git commit -m "Describe your change"
-git push
-```
-
-## Troubleshooting
-
-### Check Service Health
-
-```bash
-make logs-api
-make logs-worker
-docker-compose ps
-```
-
-### Database And Queue
-
-```bash
-make db-shell
-make redis-cli
-docker-compose exec redis redis-cli LLEN scan_jobs
-```
-
-### GitHub API Limits
-
-The app uses unauthenticated public GitHub API requests. If GitHub rate limits the server, wait and try again later.
+- Refresh token rotation
+- Password reset and email verification
+- Role-based access control
+- Expiring share links
+- Private repository access tokens
+- CI/webhook-triggered scans
+- Database migrations
+- Sentry or another error tracking backend
 
 ## Documentation
 
 - [API Documentation](API.md)
 - [Deployment Guide](DEPLOYMENT.md)
+- [Setup Guide](SETUP.md)
 - [Example Client](example_client.py)
 
 ## License

@@ -89,6 +89,28 @@ export interface ScanComparison {
   metrics: ScanComparisonMetric[];
 }
 
+export interface ShareReportResponse {
+  scan_id: string;
+  share_token: string;
+  api_url: string;
+}
+
+export interface ExecutiveSummary {
+  total_scans: number;
+  completed_scans: number;
+  failed_scans: number;
+  active_scans: number;
+  repositories_scanned: number;
+  total_files: number;
+  total_lines_of_code: number;
+  avg_complexity: number;
+  avg_doc_coverage: number;
+  total_todos: number;
+  total_fixmes: number;
+  total_dependencies: number;
+  avg_scan_duration: number;
+}
+
 export interface ScanMetrics {
   scan_id: string;
   repository_path: string;

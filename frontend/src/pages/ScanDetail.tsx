@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { Scan, FileMetric } from '../types';
+import { ScanProgressTimeline } from '../components/ScanProgressTimeline';
 import {
   Bar,
   BarChart,
@@ -37,6 +38,8 @@ export const ScanDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [scan, setScan] = useState<Scan | null>(null);
   const [files, setFiles] = useState<FileMetric[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     if (id) loadScan(id);
@@ -61,6 +64,31 @@ export const ScanDetail: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(null), 3200);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+
+  const exportReport = async (format: 'csv' | 'pdf') => {
+    if (!id) return;
+    setIsExporting(true);
+    try {
+      await api.exportScan(id, format);
+      setToast(`${format.toUpperCase()} export started.`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const shareReport = async () => {
+    if (!id) return;
+    const result = await api.createShareReport(id);
+    const shareUrl = `${window.location.origin}/shared/${result.share_token}`;
+    await navigator.clipboard.writeText(shareUrl);
+    setToast('Share link copied.');
+  };
+
   if (!scan) return <div>Loading...</div>;
   if (!scan.metrics) {
     return (
@@ -68,15 +96,14 @@ export const ScanDetail: React.FC = () => {
         <h1>Scan Results</h1>
         <p>{scan.repository_path} ({scan.branch})</p>
         <span className={`status ${scan.status}`}>{scan.status}</span>
-        <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${scan.progress}%` }} />
-        </div>
-        <div className="progress-info">
-          <p><strong>{scan.progress.toFixed(1)}%</strong> complete</p>
-          <p>{scan.files_processed} / {scan.files_total} files processed</p>
-          {scan.current_file && <p className="current-file">Current: {scan.current_file}</p>}
-          {scan.error_message && <p className="error-message">{scan.error_message}</p>}
-        </div>
+        <ScanProgressTimeline
+          status={scan.status}
+          progress={scan.progress}
+          filesProcessed={scan.files_processed}
+          filesTotal={scan.files_total}
+          currentFile={scan.current_file}
+          errorMessage={scan.error_message}
+        />
       </div>
     );
   }
@@ -104,8 +131,23 @@ export const ScanDetail: React.FC = () => {
 
   return (
     <div className="scan-detail">
-      <h1>Scan Results</h1>
-      <p>{scan.repository_path} ({scan.branch})</p>
+      <div className="detail-header">
+        <div>
+          <h1>Scan Results</h1>
+          <p>{scan.repository_path} ({scan.branch})</p>
+        </div>
+        <div className="table-actions">
+          <button type="button" onClick={() => exportReport('csv')} disabled={isExporting}>
+            Export CSV
+          </button>
+          <button type="button" onClick={() => exportReport('pdf')} disabled={isExporting}>
+            Export PDF
+          </button>
+          <button type="button" className="btn-primary" onClick={shareReport}>
+            Share Report
+          </button>
+        </div>
+      </div>
 
       <div className="metrics-grid">
         <div className="metric-card">
@@ -311,6 +353,7 @@ export const ScanDetail: React.FC = () => {
           </tbody>
         </table>
       </div>
+      {toast && <div className="toast success">{toast}</div>}
     </div>
   );
 };

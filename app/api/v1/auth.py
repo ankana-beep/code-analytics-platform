@@ -16,7 +16,7 @@ from app.core.security import (
     verify_password,
     bearer_scheme
 )
-from app.domain.models import TokenResponse, User, UserCreate, UserLogin, UserPublic
+from app.domain.models import TokenResponse, User, UserCreate, UserLogin, UserPublic, UserUpdate
 from app.repositories.user_repository import UserRepository
 
 
@@ -102,3 +102,16 @@ async def logout(
 @router.get("/me", response_model=UserPublic)
 async def me(current_user: User = Depends(get_current_user)):
     return public_user(current_user)
+
+
+@router.patch("/me", response_model=UserPublic)
+async def update_me(
+    request: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    users = UserRepository(db)
+    updated = await users.update_user(current_user.id or "", request.model_dump(exclude_unset=True))
+    if not updated:
+        raise HTTPException(status_code=404, detail="User not found")
+    return public_user(updated)

@@ -51,6 +51,7 @@ class MongoDBManager:
         await self.database.scans.create_index("repository_path")
         await self.database.scans.create_index("status")
         await self.database.scans.create_index("created_at")
+        await self.database.scans.create_index("share_token")
         await self.database.scans.create_index([("repository_path", 1), ("created_at", -1)])
         
         # Files collection indexes
