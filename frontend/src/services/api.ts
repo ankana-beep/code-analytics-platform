@@ -86,8 +86,8 @@ export const api = {
   },
 
   async createScan(repositoryPath: string, branch = 'main', savedRepositoryId?: string) {
-    const { data } = await axios.post(`${API_BASE}/scans`, {
-      repository_path: repositoryPath,
+    const { data } = await axios.post<Scan>(`${API_BASE}/basic-scans`, {
+      repository_url: repositoryPath,
       branch,
       saved_repository_id: savedRepositoryId
     });
@@ -95,19 +95,26 @@ export const api = {
   },
 
   async getScans(skip = 0, limit = 10) {
-    const { data } = await axios.get<Scan[]>(`${API_BASE}/scans`, {
+    const { data } = await axios.get<Scan[]>(`${API_BASE}/basic-scans`, {
       params: { skip, limit }
     });
     return data;
   },
 
   async getScan(scanId: string) {
-    const { data } = await axios.get<Scan>(`${API_BASE}/scans/${scanId}`);
+    const { data } = await axios.get<Scan>(`${API_BASE}/basic-scans/${scanId}`);
     return data;
   },
 
   async getScanStatus(scanId: string) {
-    const { data } = await axios.get<ScanStatus>(`${API_BASE}/scans/${scanId}/status`);
+    const { data } = await axios.get<ScanStatus>(`${API_BASE}/basic-scans/${scanId}/status`);
+    return data;
+  },
+
+  async getBasicScanBranches(repositoryUrl: string) {
+    const { data } = await axios.get<GitHubBranch[]>(`${API_BASE}/basic-scans/branches`, {
+      params: { repository_url: repositoryUrl }
+    });
     return data;
   },
 

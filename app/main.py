@@ -14,7 +14,7 @@ from app.core.logging import logger
 from app.core.database import mongodb_manager
 from app.core.redis import redis_manager
 from app.core.metrics import metrics
-from app.api.v1 import auth, github, repositories, reports, scans, health, websocket
+from app.api.v1 import auth, basic_scans, github, repositories, reports, scans, health, websocket
 
 
 @asynccontextmanager
@@ -27,11 +27,17 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Code Analytics Platform")
     
     try:
-        # Connect to databases
-        await mongodb_manager.connect()
-        await redis_manager.connect()
-        
-        logger.info("All services connected successfully")
+        # The foundation scanner works without MongoDB or Redis. Connect to the
+        # production services when available, but keep local starter mode usable.
+        try:
+            await mongodb_manager.connect()
+            await redis_manager.connect()
+            logger.info("All services connected successfully")
+        except Exception as exc:
+            logger.warning(
+                "Starting in foundation mode without MongoDB/Redis",
+                extra={"error": str(exc)}
+            )
         
         yield
     
@@ -177,6 +183,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include routers
 app.include_router(health.router, prefix=settings.api_v1_prefix)
+app.include_router(basic_scans.router, prefix=settings.api_v1_prefix)
 app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(github.router, prefix=settings.api_v1_prefix)
 app.include_router(repositories.router, prefix=settings.api_v1_prefix)

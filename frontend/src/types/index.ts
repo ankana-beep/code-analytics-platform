@@ -11,10 +11,50 @@ export interface Scan {
   files_total: number;
   current_file?: string;
   metrics?: ScanMetrics;
+  repository_name?: string;
+  health_score?: number;
+  health_status?: 'Good' | 'Average' | 'Needs Improvement';
+  issues?: ScanIssue[];
+  dependency_summary?: DependencySummary;
+  suggestions?: string[];
+  production_later?: string[];
   created_at: string;
   started_at?: string;
   completed_at?: string;
   error_message?: string;
+}
+
+export interface ScanIssue {
+  type: string;
+  severity: 'info' | 'warning' | 'error';
+  file: string;
+  line?: number | null;
+  message: string;
+}
+
+export interface LargestFile {
+  path: string;
+  extension: string;
+  size: number;
+  total_lines: number;
+  blank_lines: number;
+  comment_lines: number;
+  code_lines: number;
+  todo_count: number;
+  fixme_count: number;
+  console_logs: number;
+  debugger_statements: number;
+  commented_out_code: number;
+}
+
+export interface DependencySummary {
+  has_package_json: boolean;
+  dependencies: string[];
+  dev_dependencies: string[];
+  total_dependencies: number;
+  total_dev_dependencies: number;
+  possibly_unused: string[];
+  usage?: Record<string, number>;
 }
 
 export interface ScanStatus {
@@ -119,6 +159,15 @@ export interface ScanMetrics {
   total_comment_lines: number;
   total_blank_lines: number;
   total_size: number;
+  total_folders?: number;
+  total_lines?: number;
+  blank_lines?: number;
+  comment_lines?: number;
+  code_lines?: number;
+  largest_files?: LargestFile[];
+  commented_out_code?: number;
+  console_logs?: number;
+  debugger_statements?: number;
   file_types: Record<string, number>;
   docstring_coverage: number;
   todo_count: number;

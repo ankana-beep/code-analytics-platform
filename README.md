@@ -89,7 +89,7 @@ Register/Login
    |
    +-- bcrypt hashes/verifies password
    |
-   +-- FastAPI issues JWT access token
+   +-- FastAPI issues JWT access  token                                                                                                                                                                                                                                                                                                                   
    |
    +-- Redis stores token session by JWT id
    |

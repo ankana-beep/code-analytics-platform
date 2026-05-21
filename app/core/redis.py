@@ -47,7 +47,8 @@ class RedisManager:
         """Close Redis connection and cleanup resources."""
         if self.redis:
             await self.redis.close()
-            await self.pool.disconnect()
+            if self.pool:
+                await self.pool.disconnect()
             logger.info("Redis disconnected")
     
     async def enqueue_job(self, job_data: Dict[str, Any]) -> str:

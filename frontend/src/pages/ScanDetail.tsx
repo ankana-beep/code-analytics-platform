@@ -1,8 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api } from '../services/api';
-import { Scan, FileMetric } from '../types';
-import { ScanProgressTimeline } from '../components/ScanProgressTimeline';
 import {
   Bar,
   BarChart,
@@ -16,192 +13,85 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
+import { api } from '../services/api';
+import { Scan } from '../types';
 
-const COLORS = ['#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#e74c3c', '#1abc9c'];
-
+const COLORS = ['#2563eb', '#0f766e', '#b7791f', '#9b59b6', '#e74c3c', '#1abc9c'];
+const ISSUES_PAGE_SIZE = 10;
 const formatNumber = (value: number) => value.toLocaleString();
-
-const formatBytes = (bytes: number) => {
-  if (!bytes) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
-};
-
-const formatDuration = (seconds: number) => {
-  if (!seconds) return '0s';
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
-  return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
-};
 
 export const ScanDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [scan, setScan] = useState<Scan | null>(null);
-  const [files, setFiles] = useState<FileMetric[]>([]);
-  const [toast, setToast] = useState<string | null>(null);
-  const [isExporting, setIsExporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [issuesPage, setIssuesPage] = useState(1);
 
   useEffect(() => {
-    if (id) loadScan(id);
+    if (!id) return;
+    api.getScan(id)
+      .then(setScan)
+      .catch(() => setError('Scan report was not found in memory. Run a new scan to recreate it.'));
   }, [id]);
 
-  useEffect(() => {
-    if (!id || !scan || (scan.status !== 'queued' && scan.status !== 'processing')) {
-      return;
-    }
-
-    const interval = window.setInterval(() => loadScan(id), 3000);
-    return () => window.clearInterval(interval);
-  }, [id, scan?.status]);
-
-  const loadScan = async (scanId: string) => {
-    const scanData = await api.getScan(scanId);
-    setScan(scanData);
-
-    if (scanData.status === 'completed') {
-      const filesData = await api.getScanFiles(scanId, 0, 10);
-      setFiles(filesData);
-    }
-  };
-
-  useEffect(() => {
-    if (!toast) return;
-    const timeout = window.setTimeout(() => setToast(null), 3200);
-    return () => window.clearTimeout(timeout);
-  }, [toast]);
-
-  const exportReport = async (format: 'csv' | 'pdf') => {
-    if (!id) return;
-    setIsExporting(true);
-    try {
-      await api.exportScan(id, format);
-      setToast(`${format.toUpperCase()} export started.`);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const shareReport = async () => {
-    if (!id) return;
-    const result = await api.createShareReport(id);
-    const shareUrl = `${window.location.origin}/shared/${result.share_token}`;
-    await navigator.clipboard.writeText(shareUrl);
-    setToast('Share link copied.');
-  };
-
-  if (!scan) return <div>Loading...</div>;
-  if (!scan.metrics) {
-    return (
-      <div className="scan-progress">
-        <h1>Scan Results</h1>
-        <p>{scan.repository_path} ({scan.branch})</p>
-        <span className={`status ${scan.status}`}>{scan.status}</span>
-        <ScanProgressTimeline
-          status={scan.status}
-          progress={scan.progress}
-          filesProcessed={scan.files_processed}
-          filesTotal={scan.files_total}
-          currentFile={scan.current_file}
-          errorMessage={scan.error_message}
-        />
-      </div>
-    );
-  }
+  if (error) return <p className="error-message">{error}</p>;
+  if (!scan || !scan.metrics) return <div>Loading...</div>;
 
   const { metrics } = scan;
-  const codeData = [
-    { name: 'Code', value: metrics.total_lines_of_code },
-    { name: 'Comments', value: metrics.total_comment_lines },
-    { name: 'Blank', value: metrics.total_blank_lines }
+  const lineData = [
+    { name: 'Code', value: metrics.code_lines || metrics.total_lines_of_code },
+    { name: 'Comments', value: metrics.comment_lines || metrics.total_comment_lines },
+    { name: 'Blank', value: metrics.blank_lines || metrics.total_blank_lines }
   ];
   const fileTypeData = Object.entries(metrics.file_types || {})
     .map(([type, count]) => ({ type: type || 'No extension', count }))
     .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
-  const folderData = [...metrics.folder_statistics]
-    .sort((a, b) => b.total_lines - a.total_lines)
-    .slice(0, 8)
-    .map(folder => ({
-      name: folder.folder_path.split('/').filter(Boolean).pop() || folder.folder_path || 'root',
-      files: folder.total_files,
-      lines: folder.total_lines,
-      complexity: Number(folder.avg_complexity.toFixed(1))
-    }));
-  const topDependencies = metrics.dependencies.slice(0, 8);
+    .slice(0, 10);
+  const issues = scan.issues || [];
+  const totalIssuePages = Math.max(1, Math.ceil(issues.length / ISSUES_PAGE_SIZE));
+  const issuePageStart = (issuesPage - 1) * ISSUES_PAGE_SIZE;
+  const visibleIssues = issues.slice(issuePageStart, issuePageStart + ISSUES_PAGE_SIZE);
+  const dependencySummary = scan.dependency_summary;
+
+  const changeIssuesPage = (nextPage: number) => {
+    setIssuesPage(Math.min(Math.max(nextPage, 1), totalIssuePages));
+  };
 
   return (
     <div className="scan-detail">
       <div className="detail-header">
         <div>
-          <h1>Scan Results</h1>
+          <p className="eyebrow">Basic Code Health Report</p>
+          <h1>{scan.repository_name || scan.repository_path}</h1>
           <p>{scan.repository_path} ({scan.branch})</p>
-        </div>
-        <div className="table-actions">
-          <button type="button" onClick={() => exportReport('csv')} disabled={isExporting}>
-            Export CSV
-          </button>
-          <button type="button" onClick={() => exportReport('pdf')} disabled={isExporting}>
-            Export PDF
-          </button>
-          <button type="button" className="btn-primary" onClick={shareReport}>
-            Share Report
-          </button>
         </div>
       </div>
 
+      <section className="panel report-section">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Summary</p>
+            <h2>Repository Health</h2>
+          </div>
+          <span className="panel-meta">Scanned {new Date(scan.created_at).toLocaleString()}</span>
+        </div>
+        <p>
+          This scan analyzed {formatNumber(metrics.total_files)} supported files across {formatNumber(metrics.total_folders || 0)} folders,
+          finding {formatNumber(issues.length)} quality signals and {formatNumber(dependencySummary?.possibly_unused.length || 0)} possibly unused dependencies.
+        </p>
+      </section>
+
       <div className="metrics-grid">
-        <div className="metric-card">
-          <h3>{metrics.total_files}</h3>
-          <p>Total Files</p>
-        </div>
-        <div className="metric-card">
-          <h3>{formatNumber(metrics.total_lines_of_code)}</h3>
-          <p>Lines of Code</p>
-        </div>
-        <div className="metric-card">
-          <h3>{formatNumber(metrics.total_comment_lines)}</h3>
-          <p>Comment Lines</p>
-        </div>
-        <div className="metric-card">
-          <h3>{formatNumber(metrics.total_blank_lines)}</h3>
-          <p>Blank Lines</p>
-        </div>
-        <div className="metric-card">
-          <h3>{formatBytes(metrics.total_size)}</h3>
-          <p>Total Size</p>
-        </div>
-        <div className="metric-card">
-          <h3>{metrics.docstring_coverage.toFixed(1)}%</h3>
-          <p>Docstring Coverage</p>
-        </div>
-        <div className="metric-card">
-          <h3>{metrics.complexity_metrics.avg_cyclomatic_complexity.toFixed(1)}</h3>
-          <p>Avg Complexity</p>
-        </div>
-        <div className="metric-card">
-          <h3>{metrics.complexity_metrics.max_cyclomatic_complexity}</h3>
-          <p>Max Complexity</p>
-        </div>
-        <div className="metric-card">
-          <h3>{metrics.complexity_metrics.avg_cognitive_complexity.toFixed(1)}</h3>
-          <p>Avg Cognitive</p>
-        </div>
-        <div className="metric-card">
-          <h3>{metrics.complexity_metrics.avg_maintainability_index.toFixed(1)}</h3>
-          <p>Maintainability</p>
-        </div>
-        <div className="metric-card">
-          <h3>{metrics.test_metrics.total_test_files}</h3>
-          <p>Test Files</p>
-        </div>
-        <div className="metric-card">
-          <h3>{metrics.test_metrics.tests_per_module.toFixed(2)}</h3>
-          <p>Tests / Module</p>
-        </div>
-        <div className="metric-card">
-          <h3>{formatDuration(metrics.scan_duration)}</h3>
-          <p>Scan Duration</p>
-        </div>
+        <div className="metric-card"><h3>{scan.health_status || '-'}</h3><p>Health Status</p></div>
+        <div className="metric-card"><h3>{formatNumber(metrics.total_files)}</h3><p>Total Files</p></div>
+        <div className="metric-card"><h3>{formatNumber(metrics.total_folders || 0)}</h3><p>Total Folders</p></div>
+        <div className="metric-card"><h3>{formatNumber(metrics.total_lines || 0)}</h3><p>Total Lines</p></div>
+        <div className="metric-card"><h3>{formatNumber(metrics.code_lines || metrics.total_lines_of_code)}</h3><p>Code Lines</p></div>
+        <div className="metric-card"><h3>{formatNumber(metrics.comment_lines || metrics.total_comment_lines)}</h3><p>Comment Lines</p></div>
+        <div className="metric-card"><h3>{formatNumber(metrics.blank_lines || metrics.total_blank_lines)}</h3><p>Blank Lines</p></div>
+        <div className="metric-card"><h3>{formatNumber(metrics.todo_count + metrics.fixme_count)}</h3><p>TODO / FIXME</p></div>
+        <div className="metric-card"><h3>{formatNumber(metrics.console_logs || 0)}</h3><p>Console Logs</p></div>
+        <div className="metric-card"><h3>{formatNumber(metrics.debugger_statements || 0)}</h3><p>Debuggers</p></div>
+        <div className="metric-card"><h3>{formatNumber(metrics.commented_out_code || 0)}</h3><p>Commented Code</p></div>
       </div>
 
       <div className="chart-row">
@@ -209,16 +99,8 @@ export const ScanDetail: React.FC = () => {
           <h2>Line Breakdown</h2>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie
-                data={codeData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                label
-              >
-                {codeData.map((_, index) => (
+              <Pie data={lineData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                {lineData.map((_, index) => (
                   <Cell key={index} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
@@ -229,131 +111,155 @@ export const ScanDetail: React.FC = () => {
         </div>
 
         <div className="chart-container">
-          <h2>File Types</h2>
+          <h2>File Type Breakdown</h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={fileTypeData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="type" />
               <YAxis allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="count" fill="#3498db" name="Files" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="chart-container wide">
-          <h2>Largest Folders</h2>
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={folderData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="lines" fill="#2ecc71" name="Lines" />
-              <Bar dataKey="files" fill="#f39c12" name="Files" />
-              <Bar dataKey="complexity" fill="#9b59b6" name="Avg Complexity" />
+              <Bar dataKey="count" fill="var(--chart-blue)" name="Files" />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      <div className="issues-section">
-        <h2>Issues Found</h2>
-        <div className="issue-cards">
-          <div className="issue-card warn">
-            <h3>{metrics.todo_count}</h3>
-            <p>TODOs</p>
-          </div>
-          <div className="issue-card error">
-            <h3>{metrics.fixme_count}</h3>
-            <p>FIXMEs</p>
-          </div>
-          <div className="issue-card info">
-            <h3>{metrics.duplicate_files.length}</h3>
-            <p>Duplicates</p>
-          </div>
-          <div className="issue-card warn">
-            <h3>{metrics.unused_imports}</h3>
-            <p>Unused Imports</p>
-          </div>
-          <div className="issue-card warn">
-            <h3>{metrics.unused_variables}</h3>
-            <p>Unused Variables</p>
-          </div>
-          <div className="issue-card info">
-            <h3>{metrics.dependencies.length}</h3>
-            <p>Dependencies</p>
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Largest Files</p>
+            <h2>Files by Line Count</h2>
           </div>
         </div>
-      </div>
-
-      <div className="dependencies-section">
-        <h2>Top Dependencies</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Package</th>
-              <th>Usage Count</th>
-              <th>Files</th>
-            </tr>
-          </thead>
-          <tbody>
-            {topDependencies.map(dependency => (
-              <tr key={dependency.package_name}>
-                <td>{dependency.package_name}</td>
-                <td>{dependency.usage_count}</td>
-                <td>{dependency.files.length}</td>
-              </tr>
-            ))}
-            {topDependencies.length === 0 && (
+        <div className="table-wrap">
+          <table>
+            <thead>
               <tr>
-                <td colSpan={3}>No dependencies detected.</td>
+                <th>File</th>
+                <th>Total</th>
+                <th>Code</th>
+                <th>Comments</th>
+                <th>Blank</th>
+                <th>TODOs</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="files-section">
-        <h2>Most Complex Files</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>File</th>
-              <th>LOC</th>
-              <th>Complexity</th>
-              <th>Cognitive</th>
-              <th>Maintainability</th>
-              <th>TODOs</th>
-              <th>FIXMEs</th>
-              <th>Docs %</th>
-            </tr>
-          </thead>
-          <tbody>
-            {files
-              .sort((a, b) => b.cyclomatic_complexity - a.cyclomatic_complexity)
-              .slice(0, 10)
-              .map(file => (
-                <tr key={file.file_path}>
-                  <td>{file.file_path.split('/').pop()}</td>
-                  <td>{file.lines_of_code}</td>
-                  <td>
-                    <span className={file.cyclomatic_complexity > 10 ? 'high' : ''}>
-                      {file.cyclomatic_complexity}
-                    </span>
-                  </td>
-                  <td>{file.cognitive_complexity}</td>
-                  <td>{file.maintainability_index.toFixed(1)}</td>
-                  <td>{file.todo_count}</td>
-                  <td>{file.fixme_count}</td>
-                  <td>{file.docstring_coverage.toFixed(0)}%</td>
+            </thead>
+            <tbody>
+              {(metrics.largest_files || []).map(file => (
+                <tr key={file.path}>
+                  <td className="repository-cell">{file.path}</td>
+                  <td>{file.total_lines}</td>
+                  <td>{file.code_lines}</td>
+                  <td>{file.comment_lines}</td>
+                  <td>{file.blank_lines}</td>
+                  <td>{file.todo_count + file.fixme_count}</td>
                 </tr>
               ))}
-          </tbody>
-        </table>
-      </div>
-      {toast && <div className="toast success">{toast}</div>}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Issues</p>
+            <h2>Quality Checks</h2>
+            <p>
+              Showing {issues.length ? issuePageStart + 1 : 0}
+              {' - '}
+              {Math.min(issuePageStart + ISSUES_PAGE_SIZE, issues.length)}
+              {' '}of {issues.length}
+            </p>
+          </div>
+          <div className="pagination-controls">
+            <button
+              type="button"
+              onClick={() => changeIssuesPage(issuesPage - 1)}
+              disabled={issuesPage === 1}
+            >
+              Previous
+            </button>
+            <span>Page {issuesPage} of {totalIssuePages}</span>
+            <button
+              type="button"
+              onClick={() => changeIssuesPage(issuesPage + 1)}
+              disabled={issuesPage === totalIssuePages}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Severity</th>
+                <th>Type</th>
+                <th>File</th>
+                <th>Line</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleIssues.map((issue, index) => (
+                <tr key={`${issue.file}-${issue.line}-${index}`}>
+                  <td><span className={`issue-severity ${issue.severity}`}>{issue.severity}</span></td>
+                  <td>{issue.type.replace(/_/g, ' ')}</td>
+                  <td className="repository-cell">{issue.file}</td>
+                  <td>{issue.line || '-'}</td>
+                  <td>{issue.message}</td>
+                </tr>
+              ))}
+              {issues.length === 0 && (
+                <tr><td colSpan={5}>No basic quality issues detected.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="panel dependencies-section">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Dependencies</p>
+            <h2>package.json Summary</h2>
+          </div>
+        </div>
+        {dependencySummary?.has_package_json ? (
+          <>
+            <div className="metrics-grid compact">
+              <div className="metric-card"><h3>{dependencySummary.total_dependencies}</h3><p>Dependencies</p></div>
+              <div className="metric-card"><h3>{dependencySummary.total_dev_dependencies}</h3><p>Dev Dependencies</p></div>
+              <div className="metric-card"><h3>{dependencySummary.possibly_unused.length}</h3><p>Possibly Unused</p></div>
+            </div>
+            <p className="dependency-list">
+              <strong>Dependencies:</strong> {dependencySummary.dependencies.join(', ') || 'None'}
+            </p>
+            <p className="dependency-list">
+              <strong>Dev dependencies:</strong> {dependencySummary.dev_dependencies.join(', ') || 'None'}
+            </p>
+            <p className="dependency-list">
+              <strong>Possibly unused:</strong> {dependencySummary.possibly_unused.join(', ') || 'None detected'}
+            </p>
+          </>
+        ) : (
+          <p>No package.json file was found.</p>
+        )}
+      </section>
+
+      <section className="panel suggestions-section">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Suggestions</p>
+            <h2>Next Improvements</h2>
+          </div>
+        </div>
+        <ul className="suggestion-list">
+          {(scan.suggestions || []).map(suggestion => (
+            <li key={suggestion}>{suggestion}</li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 };

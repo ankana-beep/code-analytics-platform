@@ -1,0 +1,62 @@
+---
+id: 8556e94e-4119-4e36-ae71-930703cf8a01
+---
+flowchart TD
+    A["User / Developer / Manager"] --> B["Web Dashboard"]
+
+    B --> C["Authentication"]
+    B --> D["GitHub Repository Input"]
+
+    D --> E["GitHub API"]
+    E --> F["Repository Fetcher Service"]
+
+    F --> G["Scan Job Queue"]
+    G --> H["Code Scanner Engine"]
+
+    H --> I["File & Folder Analyzer"]
+    H --> J["Lines of Code Analyzer"]
+    H --> K["Commented / Blank Line Analyzer"]
+    H --> L["Unused Files & Folders Analyzer"]
+    H --> M["Unused Libraries Analyzer"]
+    H --> N["Formatting Issue Analyzer"]
+    H --> O["SOLID Principle Analyzer"]
+    H --> P["Security & Secret Scanner"]
+    H --> Q["Code Complexity Analyzer"]
+    H --> R["Test Coverage Analyzer"]
+    H --> S["Documentation Analyzer"]
+
+    I --> T["Result Processor"]
+    J --> T
+    K --> T
+    L --> T
+    M --> T
+    N --> T
+    O --> T
+    P --> T
+    Q --> T
+    R --> T
+    S --> T
+
+    T --> U["AI Suggestion Engine"]
+
+    U --> V["Developer Suggestions"]
+    U --> W["Business Insights"]
+    U --> X["Refactoring Roadmap"]
+    U --> Y["Risk & Priority Score"]
+
+    T --> Z["Database"]
+    V --> Z
+    W --> Z
+    X --> Z
+    Y --> Z
+
+    Z --> AA["Dashboard API"]
+    AA --> B
+
+    AA --> AB["Report Generator"]
+    AB --> AC["PDF / Excel / JSON Export"]
+
+    AA --> AD["Notification Service"]
+    AD --> AE["Email / Slack / Teams Alerts"]
+
+    B --> AF["Admin & Team Management"]
