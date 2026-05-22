@@ -25,6 +25,16 @@ from app.services.github_service import GitHubError, parse_github_repository
 
 IGNORED_FOLDERS = {"node_modules", ".git", "dist", "build", "coverage", "vendor"}
 SOURCE_EXTENSIONS = {".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".html", ".css", ".scss", ".json"}
+TEST_PATTERNS = (
+    ".test.",
+    ".spec.",
+    "_test.",
+    "test_",
+    "/tests/",
+    "/__tests__/",
+)
+SECURITY_TERMS = {"auth", "login", "token", "secret", "password", "payment", "billing", "permission", "admin"}
+COMPLIANCE_TERMS = {"privacy", "gdpr", "hipaa", "pci", "audit", "license", "consent", "retention"}
 CONFIG_FILES = {
     "package.json",
     "tsconfig.json",
@@ -294,6 +304,231 @@ def _score_health(metrics: dict[str, Any], issues: list[dict[str, Any]], depende
     return score, status
 
 
+def _risk_level(score: int) -> str:
+    if score >= 70:
+        return "High"
+    if score >= 35:
+        return "Medium"
+    return "Low"
+
+
+def _module_name(file_path: str) -> str:
+    parts = Path(file_path).parts
+    if len(parts) >= 2 and parts[0] in {"src", "app", "lib", "server", "client", "frontend", "backend"}:
+        return f"{parts[0]}/{parts[1]}"
+    return parts[0] if parts else "root"
+
+
+def _issue_hours(issue_type: str) -> float:
+    estimates = {
+        "debugger": 0.5,
+        "console_log": 0.25,
+        "large_file": 4,
+        "long_function": 3,
+        "commented_out_code": 0.5,
+        "todo_fixme": 1,
+        "blank_lines": 0.25,
+    }
+    return estimates.get(issue_type, 1)
+
+
+def _build_manager_report(
+    metrics: dict[str, Any],
+    issues: list[dict[str, Any]],
+    dependency_summary: dict[str, Any],
+    file_results: list[dict[str, Any]],
+    folders: set[str],
+) -> dict[str, Any]:
+    issue_counts = Counter(issue["type"] for issue in issues)
+    severity_counts = Counter(issue["severity"] for issue in issues)
+    total_files = max(metrics["total_files"], 1)
+    test_files = metrics["test_metrics"]["total_test_files"]
+    test_ratio = test_files / total_files
+    has_docs = any(file["path"].lower() in {"readme.md", "docs/readme.md"} or file["path"].lower().startswith("docs/") for file in file_results)
+    has_ci = any(path.startswith(".github/workflows") for path in folders)
+    possibly_unused = len(dependency_summary["possibly_unused"])
+    sensitive_files = [
+        file for file in file_results
+        if any(term in file["path"].lower() for term in SECURITY_TERMS)
+    ]
+    compliance_files = [
+        file for file in file_results
+        if any(term in file["path"].lower() for term in COMPLIANCE_TERMS)
+    ]
+
+    release_score = 0
+    release_score += issue_counts["debugger"] * 18
+    release_score += issue_counts["large_file"] * 4
+    release_score += issue_counts["long_function"] * 5
+    release_score += issue_counts["todo_fixme"] * 2
+    release_score += min(possibly_unused * 2, 20)
+    if test_ratio < 0.05:
+        release_score += 20
+    if not has_ci:
+        release_score += 10
+
+    security_score = issue_counts["debugger"] * 20 + len(sensitive_files) * 6
+    if sensitive_files and test_ratio < 0.1:
+        security_score += 20
+
+    maintenance_score = issue_counts["large_file"] * 10 + issue_counts["long_function"] * 8
+    maintenance_score += issue_counts["commented_out_code"] * 3 + issue_counts["todo_fixme"] * 2
+
+    scalability_score = sum(1 for file in file_results if file["total_lines"] > 300) * 8
+    scalability_score += max(0, metrics["total_lines"] - 10000) // 1000 * 4
+
+    compliance_score = 15 if not has_docs else 0
+    compliance_score += 20 if compliance_files and test_ratio < 0.1 else 0
+    compliance_score += issue_counts["debugger"] * 10
+
+    onboarding_score = 25 if not has_docs else 0
+    onboarding_score += 15 if not dependency_summary["has_package_json"] else 0
+    onboarding_score += 10 if metrics["total_folders"] > 40 else 0
+    onboarding_score += min(issue_counts["commented_out_code"] * 3, 20)
+
+    categories = [
+        {
+            "name": "Release risk",
+            "level": _risk_level(release_score),
+            "score": min(release_score, 100),
+            "reason": "Debuggers, large work items, dependency cleanup, tests, and CI readiness.",
+        },
+        {
+            "name": "Security risk",
+            "level": _risk_level(security_score),
+            "score": min(security_score, 100),
+            "reason": "Security-sensitive paths and production debugging signals.",
+        },
+        {
+            "name": "Maintenance risk",
+            "level": _risk_level(maintenance_score),
+            "score": min(maintenance_score, 100),
+            "reason": "Large files, long functions, TODOs, and commented-out code.",
+        },
+        {
+            "name": "Scalability risk",
+            "level": _risk_level(scalability_score),
+            "score": min(scalability_score, 100),
+            "reason": "Large modules and repository size signals.",
+        },
+        {
+            "name": "Compliance risk",
+            "level": _risk_level(compliance_score),
+            "score": min(compliance_score, 100),
+            "reason": "Documentation, audit/privacy-sensitive paths, and release hygiene.",
+        },
+        {
+            "name": "Developer onboarding risk",
+            "level": _risk_level(onboarding_score),
+            "score": min(onboarding_score, 100),
+            "reason": "Docs, dependency metadata, folder count, and noisy legacy code.",
+        },
+    ]
+
+    module_stats: dict[str, dict[str, Any]] = defaultdict(lambda: {
+        "files": 0,
+        "lines": 0,
+        "issues": Counter(),
+        "severity": Counter(),
+        "sensitive": False,
+    })
+    for file in file_results:
+        module = _module_name(file["path"])
+        module_stats[module]["files"] += 1
+        module_stats[module]["lines"] += file["total_lines"]
+        module_stats[module]["sensitive"] = module_stats[module]["sensitive"] or any(
+            term in file["path"].lower() for term in SECURITY_TERMS
+        )
+    for issue in issues:
+        module = _module_name(issue["file"])
+        module_stats[module]["issues"][issue["type"]] += 1
+        module_stats[module]["severity"][issue["severity"]] += 1
+
+    risky_modules = []
+    debt_by_module = []
+    for module, data in module_stats.items():
+        module_issue_count = sum(data["issues"].values())
+        module_score = (
+            data["severity"]["error"] * 25
+            + data["severity"]["warning"] * 9
+            + data["severity"]["info"] * 3
+            + max(0, data["lines"] - 800) // 100
+            + (15 if data["sensitive"] else 0)
+        )
+        reasons = []
+        if data["sensitive"]:
+            reasons.append("security-sensitive code")
+        if data["lines"] > 800:
+            reasons.append("large module")
+        if data["issues"]["large_file"] or data["issues"]["long_function"]:
+            reasons.append("high complexity signals")
+        if data["issues"]["todo_fixme"] or data["issues"]["commented_out_code"]:
+            reasons.append("cleanup markers")
+        if not reasons:
+            reasons.append(f"{module_issue_count} quality signals")
+        risky_modules.append({
+            "module": module,
+            "risk": _risk_level(module_score),
+            "score": min(module_score, 100),
+            "reason": ", ".join(reasons),
+            "files": data["files"],
+            "lines": data["lines"],
+            "issue_count": module_issue_count,
+        })
+        debt_by_module.append({
+            "module": module,
+            "hours": round(sum(data["issues"][issue_type] * _issue_hours(issue_type) for issue_type in data["issues"]), 1),
+        })
+
+    risky_modules = sorted(risky_modules, key=lambda item: (item["score"], item["lines"]), reverse=True)[:5]
+    debt_by_module = sorted(debt_by_module, key=lambda item: item["hours"], reverse=True)[:8]
+
+    debt_by_severity = {
+        "high": round(severity_counts["error"] * 2 + issue_counts["large_file"] * 2 + issue_counts["long_function"] * 1.5, 1),
+        "medium": round(severity_counts["warning"] * 1.25, 1),
+        "low": round(severity_counts["info"] * 0.75, 1),
+    }
+    debt_by_severity["high"] += round(possibly_unused * 0.5, 1)
+    estimated_hours = round(sum(debt_by_severity.values()), 1)
+
+    readiness_penalty = min(70, round(release_score * 0.55 + security_score * 0.2 + maintenance_score * 0.15 + compliance_score * 0.1))
+    release_readiness = max(0, min(100, 100 - readiness_penalty))
+    blocking_issues = []
+    if issue_counts["debugger"]:
+        blocking_issues.append(f"{issue_counts['debugger']} debugger statements")
+    if issue_counts["large_file"]:
+        blocking_issues.append(f"{issue_counts['large_file']} high-complexity files")
+    if test_ratio < 0.05:
+        blocking_issues.append("Low test coverage signal based on discovered test files")
+    if possibly_unused:
+        blocking_issues.append(f"{possibly_unused} possibly unused dependencies")
+    if not has_ci:
+        blocking_issues.append("No CI workflow detected")
+    if not blocking_issues:
+        blocking_issues.append("No blocking issues detected by the basic scanner")
+
+    return {
+        "risk_categories": categories,
+        "technical_debt": {
+            "estimated_hours": estimated_hours,
+            "high_priority_hours": round(debt_by_severity["high"], 1),
+            "medium_priority_hours": round(debt_by_severity["medium"], 1),
+            "low_priority_hours": round(debt_by_severity["low"], 1),
+            "debt_by_module": debt_by_module,
+            "debt_by_severity": debt_by_severity,
+            "debt_trend": "Baseline scan",
+            "hourly_rate": None,
+            "estimated_cost": None,
+        },
+        "top_risky_modules": risky_modules,
+        "release_readiness": {
+            "percentage": release_readiness,
+            "status": "Ready" if release_readiness >= 80 else "Needs fixes" if release_readiness >= 60 else "Not ready",
+            "blocking_issues": blocking_issues,
+        },
+    }
+
+
 def run_basic_scan(repository_url: str, branch: str = "main") -> dict[str, Any]:
     repository = parse_github_repository(repository_url)
     if not repository:
@@ -369,7 +604,14 @@ def run_basic_scan(repository_url: str, branch: str = "main") -> dict[str, Any]:
                 "max_cognitive_complexity": 0,
                 "avg_maintainability_index": 100,
             },
-            "test_metrics": {"total_test_files": 0, "test_coverage_percentage": 0, "tests_per_module": 0},
+            "test_metrics": {
+                "total_test_files": sum(
+                    1 for item in file_results
+                    if any(pattern in f"/{item['path'].lower()}" for pattern in TEST_PATTERNS)
+                ),
+                "test_coverage_percentage": 0,
+                "tests_per_module": 0,
+            },
             "dependencies": [
                 {"package_name": name, "usage_count": imported_dependencies[name], "files": []}
                 for name in sorted(declared_dependencies)
@@ -380,7 +622,17 @@ def run_basic_scan(repository_url: str, branch: str = "main") -> dict[str, Any]:
             "docstring_coverage": 0,
             "created_at": datetime.utcnow().isoformat(),
         }
+        if metrics["total_folders"]:
+            metrics["test_metrics"]["tests_per_module"] = round(
+                metrics["test_metrics"]["total_test_files"] / metrics["total_folders"],
+                2,
+            )
+        metrics["test_metrics"]["test_coverage_percentage"] = round(
+            min(100, (metrics["test_metrics"]["total_test_files"] / max(metrics["total_files"], 1)) * 100),
+            1,
+        )
         health_score, health_status = _score_health(metrics, issues, dependency_summary)
+        manager_report = _build_manager_report(metrics, issues, dependency_summary, file_results, folders)
         suggestions = []
         if metrics["console_logs"] or metrics["debugger_statements"]:
             suggestions.append("Remove console.log and debugger statements before production.")
@@ -413,6 +665,7 @@ def run_basic_scan(repository_url: str, branch: str = "main") -> dict[str, Any]:
             "metrics": metrics,
             "issues": issues,
             "dependency_summary": dependency_summary,
+            "manager_report": manager_report,
             "suggestions": suggestions,
             "production_later": [
                 "Authentication",

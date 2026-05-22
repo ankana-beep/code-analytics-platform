@@ -14,6 +14,7 @@ export interface Scan {
   health_status?: 'Good' | 'Average' | 'Needs Improvement';
   issues?: ScanIssue[];
   dependency_summary?: DependencySummary;
+  manager_report?: ManagerReport;
   suggestions?: string[];
   production_later?: string[];
   created_at: string;
@@ -53,6 +54,53 @@ export interface DependencySummary {
   total_dev_dependencies: number;
   possibly_unused: string[];
   usage?: Record<string, number>;
+}
+
+export interface RiskCategory {
+  name: string;
+  level: 'Low' | 'Medium' | 'High';
+  score: number;
+  reason: string;
+}
+
+export interface DebtModule {
+  module: string;
+  hours: number;
+}
+
+export interface TechnicalDebt {
+  estimated_hours: number;
+  high_priority_hours: number;
+  medium_priority_hours: number;
+  low_priority_hours: number;
+  debt_by_module: DebtModule[];
+  debt_by_severity: Record<string, number>;
+  debt_trend: string;
+  hourly_rate?: number | null;
+  estimated_cost?: number | null;
+}
+
+export interface RiskyModule {
+  module: string;
+  risk: 'Low' | 'Medium' | 'High';
+  score: number;
+  reason: string;
+  files: number;
+  lines: number;
+  issue_count: number;
+}
+
+export interface ReleaseReadiness {
+  percentage: number;
+  status: 'Ready' | 'Needs fixes' | 'Not ready';
+  blocking_issues: string[];
+}
+
+export interface ManagerReport {
+  risk_categories: RiskCategory[];
+  technical_debt: TechnicalDebt;
+  top_risky_modules: RiskyModule[];
+  release_readiness: ReleaseReadiness;
 }
 
 export interface ScanStatus {

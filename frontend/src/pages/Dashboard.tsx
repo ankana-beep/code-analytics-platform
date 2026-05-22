@@ -41,6 +41,10 @@ export const Dashboard: React.FC = () => {
   const completedScans = scans.filter(scan => scan.status === 'completed' && scan.metrics);
   const totalFiles = completedScans.reduce((sum, scan) => sum + (scan.metrics?.total_files || 0), 0);
   const totalLines = completedScans.reduce((sum, scan) => sum + (scan.metrics?.total_lines || scan.metrics?.total_lines_of_code || 0), 0);
+  const scansWithHealth = completedScans.filter(scan => typeof scan.health_score === 'number');
+  const averageHealthScore = scansWithHealth.length
+    ? Math.round(scansWithHealth.reduce((sum, scan) => sum + (scan.health_score || 0), 0) / scansWithHealth.length)
+    : 0;
   const chartData = completedScans.slice(0, 8).map(scan => ({
     name: scan.repository_name || scan.repository_path.split('/').slice(-2).join('/'),
     files: scan.metrics?.total_files || 0,
@@ -183,6 +187,11 @@ export const Dashboard: React.FC = () => {
           <span>Total Lines</span>
           <strong>{formatNumber(totalLines)}</strong>
           <p>Code, comment, and blank lines</p>
+        </div>
+        <div className="executive-card">
+          <span>Average Health</span>
+          <strong>{scansWithHealth.length ? `${averageHealthScore}%` : '-'}</strong>
+          <p>Across completed scans</p>
         </div>
       </div>
 

@@ -51,6 +51,7 @@ export const ScanDetail: React.FC = () => {
   const issuePageStart = (issuesPage - 1) * ISSUES_PAGE_SIZE;
   const visibleIssues = issues.slice(issuePageStart, issuePageStart + ISSUES_PAGE_SIZE);
   const dependencySummary = scan.dependency_summary;
+  const managerReport = scan.manager_report;
 
   const changeIssuesPage = (nextPage: number) => {
     setIssuesPage(Math.min(Math.max(nextPage, 1), totalIssuePages));
@@ -81,7 +82,10 @@ export const ScanDetail: React.FC = () => {
       </section>
 
       <div className="metrics-grid">
-        <div className="metric-card"><h3>{scan.health_status || '-'}</h3><p>Health Status</p></div>
+        <div className="metric-card">
+          <h3>{typeof scan.health_score === 'number' ? `${scan.health_score}%` : '-'}</h3>
+          <p>Health Status</p>
+        </div>
         <div className="metric-card"><h3>{formatNumber(metrics.total_files)}</h3><p>Total Files</p></div>
         <div className="metric-card"><h3>{formatNumber(metrics.total_folders || 0)}</h3><p>Total Folders</p></div>
         <div className="metric-card"><h3>{formatNumber(metrics.total_lines || 0)}</h3><p>Total Lines</p></div>
@@ -93,6 +97,100 @@ export const ScanDetail: React.FC = () => {
         <div className="metric-card"><h3>{formatNumber(metrics.debugger_statements || 0)}</h3><p>Debuggers</p></div>
         <div className="metric-card"><h3>{formatNumber(metrics.commented_out_code || 0)}</h3><p>Commented Code</p></div>
       </div>
+
+      {managerReport && (
+        <section className="panel manager-report">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Manager View</p>
+              <h2>Risk, Debt, and Release Readiness</h2>
+            </div>
+            <div className={`readiness-badge ${managerReport.release_readiness.status.toLowerCase().replace(/\s/g, '-')}`}>
+              <strong>{managerReport.release_readiness.percentage}%</strong>
+              <span>{managerReport.release_readiness.status}</span>
+            </div>
+          </div>
+
+          <div className="manager-grid">
+            <div className="manager-card readiness-card">
+              <h3>Release Readiness</h3>
+              <div className="readiness-meter" aria-label={`Release readiness ${managerReport.release_readiness.percentage}%`}>
+                <span style={{ width: `${managerReport.release_readiness.percentage}%` }} />
+              </div>
+              <ul className="compact-list">
+                {managerReport.release_readiness.blocking_issues.map(issue => (
+                  <li key={issue}>{issue}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="manager-card debt-card">
+              <div className="card-title-row">
+                <h3>Technical Debt Estimate</h3>
+                <span
+                  className="info-tooltip"
+                  tabIndex={0}
+                  aria-label="Technical debt estimates cleanup effort from large files, long functions, TODOs, debug statements, commented-out code, and unused dependency signals."
+                >
+                  i
+                  <span className="tooltip-content" role="tooltip">
+                    Estimated cleanup effort based on complexity signals, TODOs, debug statements, commented-out code, and dependency cleanup.
+                  </span>
+                </span>
+              </div>
+              <strong>{managerReport.technical_debt.estimated_hours} hours</strong>
+              <div className="debt-breakdown">
+                <span>High: {managerReport.technical_debt.high_priority_hours}h</span>
+                <span>Medium: {managerReport.technical_debt.medium_priority_hours}h</span>
+                <span>Low: {managerReport.technical_debt.low_priority_hours}h</span>
+              </div>
+              <p>{managerReport.technical_debt.debt_trend}</p>
+            </div>
+          </div>
+
+          <div className="risk-category-grid">
+            {managerReport.risk_categories.map(category => (
+              <div className="risk-category-card" key={category.name}>
+                <div>
+                  <span className={`risk-pill ${category.level.toLowerCase()}`}>{category.level}</span>
+                  <h3>{category.name}</h3>
+                </div>
+                <strong>{category.score}</strong>
+                <p>{category.reason}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="manager-grid lower">
+            <div className="manager-card">
+              <h3>Top Risky Modules</h3>
+              <div className="module-list">
+                {managerReport.top_risky_modules.map((item, index) => (
+                  <div className="module-row" key={item.module}>
+                    <span>{index + 1}</span>
+                    <div>
+                      <strong>{item.module}</strong>
+                      <p>Risk: {item.risk} - {item.reason}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="manager-card">
+              <h3>Debt by Module</h3>
+              <div className="module-list">
+                {managerReport.technical_debt.debt_by_module.map(item => (
+                  <div className="debt-row" key={item.module}>
+                    <span>{item.module}</span>
+                    <strong>{item.hours}h</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       <div className="chart-row">
         <div className="chart-container">
