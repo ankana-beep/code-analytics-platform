@@ -9,7 +9,6 @@ from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from app.domain.models import HealthCheck
 from app.core.config import settings
 from app.core.database import mongodb_manager
-from app.core.redis import redis_manager
 from app.core.logging import logger
 
 
@@ -21,8 +20,7 @@ async def health_check():
     """
     Health check endpoint for load balancers and monitoring.
     
-    Checks connectivity to all critical services and returns
-    status information.
+    Checks connectivity to MongoDB and returns status information.
     
     Returns:
         Health check response with service statuses
@@ -41,19 +39,6 @@ async def health_check():
     except Exception as e:
         logger.error(f"MongoDB health check failed: {str(e)}")
         services['mongodb'] = "unhealthy"
-        overall_status = "unhealthy"
-    
-    # Check Redis
-    try:
-        if redis_manager.redis:
-            await redis_manager.redis.ping()
-            services['redis'] = "healthy"
-        else:
-            services['redis'] = "disconnected"
-            overall_status = "unhealthy"
-    except Exception as e:
-        logger.error(f"Redis health check failed: {str(e)}")
-        services['redis'] = "unhealthy"
         overall_status = "unhealthy"
     
     return HealthCheck(
@@ -75,9 +60,6 @@ async def readiness_check():
         # Check critical dependencies
         if mongodb_manager.database is not None:
             await mongodb_manager.database.command('ping')
-        
-        if redis_manager.redis:
-            await redis_manager.redis.ping()
         
         return {"status": "ready"}
     

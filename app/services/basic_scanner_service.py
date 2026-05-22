@@ -1,8 +1,7 @@
 """Foundation scanner for public GitHub repositories.
 
-This module intentionally keeps storage and execution simple: scans run
-synchronously, results live in memory, and public GitHub archives are downloaded
-without cloning.
+This module intentionally keeps execution simple: scans run synchronously and
+public GitHub archives are downloaded without cloning.
 """
 from __future__ import annotations
 
@@ -418,8 +417,6 @@ def run_basic_scan(repository_url: str, branch: str = "main") -> dict[str, Any]:
             "production_later": [
                 "Authentication",
                 "Private repo scanning",
-                "Database",
-                "Background queue",
                 "AI suggestions",
                 "PDF report",
                 "Team management",

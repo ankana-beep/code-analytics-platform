@@ -47,31 +47,11 @@ class MongoDBManager:
     
     async def _create_indexes(self):
         """Create necessary database indexes for optimal query performance."""
-        # Scans collection indexes
-        await self.database.scans.create_index("repository_path")
-        await self.database.scans.create_index("status")
-        await self.database.scans.create_index("created_at")
-        await self.database.scans.create_index("share_token")
-        await self.database.scans.create_index([("repository_path", 1), ("created_at", -1)])
-        
-        # Files collection indexes
-        await self.database.files.create_index("scan_id")
-        await self.database.files.create_index("file_hash")
-        await self.database.files.create_index([("scan_id", 1), ("file_path", 1)])
-        
-        # Metrics collection indexes
-        await self.database.metrics.create_index("scan_id")
-        await self.database.metrics.create_index("repository_path")
-        await self.database.metrics.create_index("timestamp")
-
-        # Users collection indexes
-        await self.database.users.create_index("email", unique=True)
-
-        # Saved repositories indexes
-        await self.database.saved_repositories.create_index("user_id")
-        await self.database.saved_repositories.create_index([("user_id", 1), ("repository_path", 1)], unique=True)
-        await self.database.saved_repositories.create_index([("user_id", 1), ("team_name", 1)])
-        await self.database.saved_repositories.create_index([("user_id", 1), ("tags", 1)])
+        await self.database.basic_scans.create_index("repository_path")
+        await self.database.basic_scans.create_index("repository_name")
+        await self.database.basic_scans.create_index("branch")
+        await self.database.basic_scans.create_index("status")
+        await self.database.basic_scans.create_index("created_at")
         
         logger.info("Database indexes created successfully")
     

@@ -661,48 +661,6 @@ form {
   max-width: 600px;
 }
 
-.auth-page {
-  align-items: center;
-  display: flex;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 2rem;
-}
-
-.auth-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-  max-width: 460px;
-  padding: 2rem;
-  width: 100%;
-}
-
-.auth-panel form {
-  border: 0;
-  box-shadow: none;
-  padding: 0;
-}
-
-.auth-tabs {
-  display: flex;
-  gap: 0.75rem;
-  margin: 1rem 0;
-}
-
-.auth-tabs button.active {
-  background: var(--primary);
-  color: white;
-}
-
-.settings-layout {
-  align-items: start;
-  display: grid;
-  gap: 1.5rem;
-  grid-template-columns: minmax(280px, 480px) 1fr;
-}
-
 .help-text {
   color: var(--text-muted);
   font-size: 0.9rem;

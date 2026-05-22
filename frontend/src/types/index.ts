@@ -1,8 +1,6 @@
 export interface Scan {
   id: string;
   _id?: string;
-  user_id?: string;
-  saved_repository_id?: string;
   repository_path: string;
   branch: string;
   status: 'queued' | 'processing' | 'completed' | 'failed';
@@ -85,72 +83,6 @@ export interface GitHubBranch {
   sha: string;
 }
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  full_name?: string;
-}
-
-export interface AuthResponse {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-  user: AuthUser;
-}
-
-export interface SavedRepository {
-  id: string;
-  _id?: string;
-  user_id: string;
-  name: string;
-  repository_path: string;
-  default_branch: string;
-  team_name?: string;
-  labels: string[];
-  tags: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ScanComparisonMetric {
-  metric: string;
-  base_value: number;
-  target_value: number;
-  delta: number;
-  delta_percent?: number;
-}
-
-export interface ScanComparison {
-  base_scan_id: string;
-  target_scan_id: string;
-  repository_path: string;
-  base_branch: string;
-  target_branch: string;
-  metrics: ScanComparisonMetric[];
-}
-
-export interface ShareReportResponse {
-  scan_id: string;
-  share_token: string;
-  api_url: string;
-}
-
-export interface ExecutiveSummary {
-  total_scans: number;
-  completed_scans: number;
-  failed_scans: number;
-  active_scans: number;
-  repositories_scanned: number;
-  total_files: number;
-  total_lines_of_code: number;
-  avg_complexity: number;
-  avg_doc_coverage: number;
-  total_todos: number;
-  total_fixmes: number;
-  total_dependencies: number;
-  avg_scan_duration: number;
-}
-
 export interface ScanMetrics {
   scan_id: string;
   repository_path: string;
@@ -219,25 +151,3 @@ export interface FolderStats {
   avg_complexity: number;
 }
 
-export interface FileMetric {
-  file_path: string;
-  file_type: string;
-  file_hash: string;
-  file_size: number;
-  lines_of_code: number;
-  comment_lines: number;
-  blank_lines: number;
-  cyclomatic_complexity: number;
-  cognitive_complexity: number;
-  maintainability_index: number;
-  docstring_coverage: number;
-  todo_count: number;
-  fixme_count: number;
-  has_tests: boolean;
-  test_coverage?: number;
-  dependencies: string[];
-  functions: number;
-  classes: number;
-  methods: number;
-  created_at: string;
-}
