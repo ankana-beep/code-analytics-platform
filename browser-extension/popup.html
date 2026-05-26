@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Code Analytics</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <span class="brand-mark" aria-hidden="true">CA</span>
+          <div>
+            <h1>Code Analytics</h1>
+            <p id="connectionLabel">GitHub bridge</p>
+          </div>
+        </div>
+        <button id="settingsButton" class="icon-button" type="button" title="Settings" aria-label="Settings">
+          <span aria-hidden="true">S</span>
+        </button>
+      </header>
+
+      <section id="messagePanel" class="message-panel" hidden>
+        <strong id="messageTitle"></strong>
+        <p id="messageText"></p>
+      </section>
+
+      <section id="repoPanel" class="repo-panel">
+        <div class="repo-heading">
+          <div>
+            <span class="label">Repository</span>
+            <h2 id="repoName">Detecting repository...</h2>
+          </div>
+          <span id="branchHint" class="branch-hint"></span>
+        </div>
+
+        <label class="field-label" for="branchSelect">Branch</label>
+        <select id="branchSelect" disabled>
+          <option>Loading branches...</option>
+        </select>
+
+        <div class="actions-row">
+          <button id="analyzeButton" class="primary-button" type="button" disabled>Analyze Repo</button>
+          <button id="refreshButton" class="secondary-button" type="button" disabled>Refresh</button>
+        </div>
+      </section>
+
+      <section class="summary-panel" aria-live="polite">
+        <div class="status-row">
+          <div>
+            <span class="label">Status</span>
+            <strong id="scanStatus">No scan loaded</strong>
+          </div>
+          <div class="progress-wrap" aria-label="Scan progress">
+            <div id="progressBar" class="progress-bar"></div>
+          </div>
+          <span id="progressText">0%</span>
+        </div>
+
+        <div class="score-row">
+          <div class="score-card">
+            <span class="label">Health</span>
+            <strong id="healthScore">--</strong>
+            <span id="healthStatus">Waiting</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">Files</span>
+            <strong id="totalFiles">--</strong>
+          </div>
+          <div class="metric-card">
+            <span class="label">LOC</span>
+            <strong id="totalLoc">--</strong>
+          </div>
+          <div class="metric-card">
+            <span class="label">Folders</span>
+            <strong id="totalFolders">--</strong>
+          </div>
+        </div>
+
+        <div class="issue-strip">
+          <div>
+            <span class="label">Quality signals</span>
+            <strong id="issueCount">--</strong>
+          </div>
+          <div>
+            <span class="label">Warnings</span>
+            <strong id="warningCount">--</strong>
+          </div>
+          <div>
+            <span class="label">Suggestions</span>
+            <strong id="suggestionCount">--</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="list-panel">
+        <div class="list-block">
+          <h3>Warnings</h3>
+          <ul id="warningsList" class="compact-list">
+            <li class="empty-row">No warnings loaded.</li>
+          </ul>
+        </div>
+        <div class="list-block">
+          <h3>Suggestions</h3>
+          <ul id="suggestionsList" class="compact-list">
+            <li class="empty-row">No suggestions loaded.</li>
+          </ul>
+        </div>
+      </section>
+
+      <footer class="footer-actions">
+        <button id="openAppButton" class="secondary-button full-width" type="button">Open App</button>
+      </footer>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
