@@ -25,8 +25,19 @@ const elements = {
   folderStatsBody: document.getElementById('folderStatsBody'),
   issuesBody: document.getElementById('issuesBody'),
   suggestionsList: document.getElementById('suggestionsList'),
-  dependencyList: document.getElementById('dependencyList')
+  dependencyList: document.getElementById('dependencyList'),
+  aiSummaryBadge: document.getElementById('aiSummaryBadge'),
+  aiSummaryButton: document.getElementById('aiSummaryButton'),
+  aiSummaryHeadline: document.getElementById('aiSummaryHeadline'),
+  aiPlainSummary: document.getElementById('aiPlainSummary'),
+  aiTechnicalSummary: document.getElementById('aiTechnicalSummary'),
+  aiStrengthsList: document.getElementById('aiStrengthsList'),
+  aiConcernsList: document.getElementById('aiConcernsList'),
+  aiQuickWinsList: document.getElementById('aiQuickWinsList'),
+  aiConfidenceNote: document.getElementById('aiConfidenceNote')
 };
+
+let currentScanId = '';
 
 function normalizeBaseUrl(value) {
   return String(value || '').trim().replace(/\/+$/, '');
@@ -97,12 +108,20 @@ async function loadSettings() {
   };
 }
 
-async function apiFetch(apiBaseUrl, path) {
+async function apiFetch(apiBaseUrl, path, options = {}) {
   const response = await fetch(`${apiBaseUrl}${path}`, {
-    headers: { 'Content-Type': 'application/json' }
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    ...options
   });
   const text = await response.text();
-  const body = text ? JSON.parse(text) : null;
+  let body = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = text;
+    }
+  }
 
   if (!response.ok) {
     const detail = body && typeof body === 'object' ? body.detail : body;
@@ -320,6 +339,91 @@ function renderDependencies(summary = {}) {
   ].forEach(([label, value]) => appendDefinition(elements.dependencyList, label, value));
 }
 
+function renderSummaryList(listElement, items, emptyText) {
+  listElement.replaceChildren();
+
+  if (!Array.isArray(items) || !items.length) {
+    const item = document.createElement('li');
+    item.className = 'empty-row';
+    item.textContent = emptyText;
+    listElement.append(item);
+    return;
+  }
+
+  items.forEach((entry) => {
+    const item = document.createElement('li');
+    item.textContent = entry;
+    listElement.append(item);
+  });
+}
+
+function setAISummaryStatus(text, tone = 'loading') {
+  elements.aiSummaryBadge.textContent = text;
+  elements.aiSummaryBadge.classList.remove('ready', 'warning', 'error');
+  if (tone === 'success') {
+    elements.aiSummaryBadge.classList.add('ready');
+  } else if (tone === 'warning') {
+    elements.aiSummaryBadge.classList.add('warning');
+  } else if (tone === 'error') {
+    elements.aiSummaryBadge.classList.add('error');
+  }
+}
+
+function setAISummaryButtonState(isBusy) {
+  elements.aiSummaryButton.disabled = isBusy || !currentScanId;
+  elements.aiSummaryButton.textContent = isBusy ? 'Generating...' : 'Get AI Summary';
+}
+
+function renderAISummaryIdle() {
+  setAISummaryStatus('On demand', 'loading');
+  elements.aiSummaryHeadline.textContent = 'Generate an AI summary when you want a faster overview.';
+  elements.aiPlainSummary.textContent = 'Click the button to get a simple explanation that non-technical readers can understand.';
+  elements.aiTechnicalSummary.textContent = 'You can also generate a short engineering-focused summary based on the saved scan.';
+  renderSummaryList(elements.aiStrengthsList, [], 'Generate a summary to see highlights.');
+  renderSummaryList(elements.aiConcernsList, [], 'Generate a summary to see the main concerns.');
+  renderSummaryList(elements.aiQuickWinsList, [], 'Generate a summary to see suggested next steps.');
+  elements.aiConfidenceNote.textContent = 'This is optional and only runs after you click the button.';
+  setAISummaryButtonState(false);
+}
+
+function renderAISummaryLoading() {
+  setAISummaryStatus('Generating...', 'loading');
+  elements.aiSummaryHeadline.textContent = 'Building an AI summary for this repository.';
+  elements.aiPlainSummary.textContent = 'Preparing a short summary for non-technical readers.';
+  elements.aiTechnicalSummary.textContent = 'Preparing a short technical summary from the saved scan.';
+  renderSummaryList(elements.aiStrengthsList, [], 'Analyzing strengths...');
+  renderSummaryList(elements.aiConcernsList, [], 'Analyzing concerns...');
+  renderSummaryList(elements.aiQuickWinsList, [], 'Analyzing next steps...');
+  elements.aiConfidenceNote.textContent = 'This usually uses the cached result if one already exists.';
+  setAISummaryButtonState(true);
+}
+
+function renderAISummary(summaryResponse) {
+  const summary = summaryResponse.summary || {};
+  const cachedLabel = summaryResponse.cached ? 'Cached summary' : 'Fresh summary';
+  setAISummaryStatus(cachedLabel, 'success');
+  elements.aiSummaryHeadline.textContent = summary.headline || 'Repository overview ready.';
+  elements.aiPlainSummary.textContent = summary.plain_english_summary || 'No plain-English summary is available.';
+  elements.aiTechnicalSummary.textContent = summary.technical_summary || 'No technical summary is available.';
+  renderSummaryList(elements.aiStrengthsList, summary.key_strengths || [], 'No strengths highlighted.');
+  renderSummaryList(elements.aiConcernsList, summary.priority_concerns || [], 'No concerns highlighted.');
+  renderSummaryList(elements.aiQuickWinsList, summary.quick_wins || [], 'No quick wins highlighted.');
+  elements.aiConfidenceNote.textContent = summary.confidence_note || 'This summary is based on static scan signals.';
+  setAISummaryButtonState(false);
+}
+
+function renderAISummaryError(message) {
+  setAISummaryStatus('Unavailable', 'warning');
+  elements.aiSummaryHeadline.textContent = 'AI summary unavailable right now.';
+  elements.aiPlainSummary.textContent = message;
+  elements.aiTechnicalSummary.textContent = 'The detailed metrics below are still available for manual review.';
+  renderSummaryList(elements.aiStrengthsList, [], 'Try again in a moment.');
+  renderSummaryList(elements.aiConcernsList, [], 'No AI concerns available.');
+  renderSummaryList(elements.aiQuickWinsList, [], 'No AI quick wins available.');
+  elements.aiConfidenceNote.textContent = 'You can still use the scan report even when the AI summary is unavailable.';
+  setAISummaryButtonState(false);
+}
+
 function renderReport(scan) {
   const metrics = scan.metrics || {};
   renderSummary(scan);
@@ -334,6 +438,32 @@ function renderReport(scan) {
   renderDependencies(scan.dependency_summary || {});
 }
 
+async function loadAISummary(apiBaseUrl, scanId) {
+  renderAISummaryLoading();
+  try {
+    const summary = await apiFetch(apiBaseUrl, `/basic-scans/${encodeURIComponent(scanId)}/ai-summary`, {
+      method: 'POST'
+    });
+    renderAISummary(summary);
+  } catch (error) {
+    renderAISummaryError(error.message || 'The AI summary could not be generated.');
+  }
+}
+
+async function handleAISummaryClick() {
+  if (!currentScanId) {
+    renderAISummaryError('Load a scan report first.');
+    return;
+  }
+
+  try {
+    const settings = await loadSettings();
+    await loadAISummary(settings.apiBaseUrl, currentScanId);
+  } catch (error) {
+    renderAISummaryError(error.message || 'The AI summary could not be generated.');
+  }
+}
+
 async function initializeReport() {
   const scanId = params.get('scan_id');
 
@@ -346,11 +476,16 @@ async function initializeReport() {
   try {
     const settings = await loadSettings();
     const scan = await apiFetch(settings.apiBaseUrl, `/basic-scans/${encodeURIComponent(scanId)}`);
+    currentScanId = scanId;
     renderReport(scan);
+    renderAISummaryIdle();
   } catch (error) {
     showMessage('Unable to load report', error.message);
     elements.reportSubtitle.textContent = 'The extension report could not load scan metrics.';
+    renderAISummaryError('Load the scan report first, then the AI summary can be requested.');
   }
 }
 
+elements.aiSummaryButton.addEventListener('click', handleAISummaryClick);
+renderAISummaryIdle();
 initializeReport();

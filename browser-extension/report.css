@@ -100,6 +100,118 @@ h2 {
   padding: 14px;
 }
 
+.ai-summary-panel {
+  background:
+    radial-gradient(circle at top right, rgba(23, 105, 224, 0.1), transparent 28%),
+    linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+}
+
+.summary-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #edf3ff;
+  color: var(--accent);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.ai-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.summary-action-button {
+  min-height: 38px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #ffffff;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.summary-action-button:hover:not(:disabled) {
+  background: #0f57bf;
+}
+
+.summary-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.summary-badge.ready {
+  background: #eefbf5;
+  color: var(--good);
+}
+
+.summary-badge.warning {
+  background: #fff8e9;
+  color: var(--warning);
+}
+
+.summary-badge.error {
+  background: #fff1f0;
+  color: var(--error);
+}
+
+.ai-summary-headline {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.ai-summary-copy,
+.ai-summary-lists {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.ai-summary-lists {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ai-summary-card,
+.ai-list-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 14px;
+}
+
+.ai-summary-card span,
+.ai-list-card span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ai-summary-card p,
+.ai-confidence-note {
+  color: var(--text);
+}
+
+.summary-list li {
+  border-left-color: var(--accent);
+}
+
+.ai-confidence-note {
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -300,8 +412,18 @@ td {
     display: grid;
   }
 
+  .ai-summary-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
   .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ai-summary-copy,
+  .ai-summary-lists {
+    grid-template-columns: 1fr;
   }
 
   .definition-grid {

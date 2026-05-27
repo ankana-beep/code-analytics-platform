@@ -2,14 +2,16 @@
 import asyncio
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pydantic import BaseModel, Field
 
+from app.core.config import settings
 from app.core.auth import get_optional_current_user
 from app.core.database import mongodb_manager
 from app.core.logging import logger
 from app.domain.models import UserProfile
+from app.services.ai_summary_service import AISummaryError, AISummaryRateLimitError, ai_summary_service
 from app.services.basic_scanner_service import BasicScannerError, run_basic_scan
 from app.services.github_service import GitHubError, list_repository_branches, parse_github_repository
 from app.services.user_service import get_github_access_token
@@ -22,6 +24,29 @@ SCAN_RESULTS: dict[str, dict[str, Any]] = {}
 class BasicScanRequest(BaseModel):
     repository_url: str = Field(..., description="GitHub repository URL")
     branch: str = Field(default="main", description="Branch to scan")
+
+
+class AIScanSummary(BaseModel):
+    headline: str
+    plain_english_summary: str
+    technical_summary: str
+    risk_level: str
+    key_strengths: list[str]
+    priority_concerns: list[str]
+    quick_wins: list[str]
+    confidence_note: str
+    scan_id: str
+    repository_name: str | None = None
+    branch: str | None = None
+    model: str
+    generated_at: str
+
+
+class AIScanSummaryResponse(BaseModel):
+    scan_id: str
+    cached: bool
+    summary: AIScanSummary
+    rate_limit: dict[str, int]
 
 
 def _get_basic_scans_collection() -> AsyncIOMotorCollection | None:
@@ -52,6 +77,15 @@ async def _load_basic_scan(scan_id: str) -> dict[str, Any] | None:
             return document
 
     return SCAN_RESULTS.get(scan_id)
+
+
+def _build_ai_rate_limit_key(
+    scan_id: str,
+    request: Request,
+    user: UserProfile | None,
+) -> str:
+    actor = f"user:{user.github_id}" if user else f"ip:{request.client.host if request.client else 'unknown'}"
+    return f"ai-summary:rate:{actor}:scan:{scan_id}"
 
 
 async def _github_token_for_user(user: UserProfile | None) -> str | None:
@@ -143,6 +177,51 @@ async def get_basic_scan(scan_id: str) -> dict[str, Any]:
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
     return scan
+
+
+@router.post("/{scan_id}/ai-summary", response_model=AIScanSummaryResponse)
+async def create_basic_scan_ai_summary(
+    scan_id: str,
+    request: Request,
+    current_user: UserProfile | None = Depends(get_optional_current_user),
+) -> AIScanSummaryResponse:
+    """Generate or return a cached AI summary for a completed scan."""
+    scan = await _load_basic_scan(scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    if scan.get("status") != "completed":
+        raise HTTPException(status_code=409, detail="AI summary is only available for completed scans")
+
+    rate_limit_key = _build_ai_rate_limit_key(scan_id, request, current_user)
+
+    try:
+        summary, cached = await ai_summary_service.generate_summary(scan, rate_limit_key)
+    except AISummaryRateLimitError as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=str(exc),
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from exc
+    except AISummaryError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if not cached:
+        scan["ai_summary"] = summary
+        try:
+            await _save_basic_scan(scan)
+        except Exception as exc:
+            logger.error("Failed to save AI summary", extra={"scan_id": scan_id, "error": str(exc)})
+            raise HTTPException(status_code=500, detail="AI summary was generated, but it could not be saved") from exc
+
+    return AIScanSummaryResponse(
+        scan_id=scan_id,
+        cached=cached,
+        summary=AIScanSummary(**summary),
+        rate_limit={
+            "limit": settings.ai_summary_rate_limit_requests,
+            "window_seconds": settings.ai_summary_rate_limit_window_seconds,
+        },
+    )
 
 
 @router.delete("/{scan_id}", status_code=204)

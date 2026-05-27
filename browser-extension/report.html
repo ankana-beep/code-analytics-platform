@@ -45,6 +45,45 @@
         </article>
       </section>
 
+      <section class="panel ai-summary-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">AI Summary</p>
+            <h2>Plain-English and Technical Overview</h2>
+          </div>
+          <div class="ai-summary-actions">
+            <span id="aiSummaryBadge" class="summary-badge">On demand</span>
+            <button id="aiSummaryButton" class="summary-action-button" type="button">Get AI Summary</button>
+          </div>
+        </div>
+        <p id="aiSummaryHeadline" class="ai-summary-headline">Generate an AI summary when you want a faster overview.</p>
+        <div class="ai-summary-copy">
+          <article class="ai-summary-card">
+            <span>For Everyone</span>
+            <p id="aiPlainSummary">Click the button to get a simple explanation that non-technical readers can understand.</p>
+          </article>
+          <article class="ai-summary-card">
+            <span>Technical Read</span>
+            <p id="aiTechnicalSummary">You can also generate a short engineering-focused summary based on the saved scan.</p>
+          </article>
+        </div>
+        <div class="ai-summary-lists">
+          <article class="ai-list-card">
+            <span>Strengths</span>
+            <ul id="aiStrengthsList" class="compact-list summary-list"></ul>
+          </article>
+          <article class="ai-list-card">
+            <span>Priority Concerns</span>
+            <ul id="aiConcernsList" class="compact-list summary-list"></ul>
+          </article>
+          <article class="ai-list-card">
+            <span>Quick Wins</span>
+            <ul id="aiQuickWinsList" class="compact-list summary-list"></ul>
+          </article>
+        </div>
+        <p id="aiConfidenceNote" class="ai-confidence-note">This is optional and only runs after you click the button.</p>
+      </section>
+
       <section class="panel">
         <div class="panel-header">
           <div>

@@ -40,6 +40,24 @@ class Settings(BaseSettings):
     cache_enabled: bool = True
     cache_ttl_seconds: int = 300
 
+    # OpenAI AI summaries
+    openai_api_key: str | None = Field(
+        default=None,
+        description="OpenAI API key used to generate repository summaries",
+    )
+    openai_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        description="Base URL for the OpenAI API",
+    )
+    openai_summary_model: str = Field(
+        default="gpt-5-mini",
+        description="OpenAI model used for repository AI summaries",
+    )
+    openai_timeout_seconds: float = 20.0
+    ai_summary_cache_ttl_seconds: int = 86400
+    ai_summary_rate_limit_requests: int = 2
+    ai_summary_rate_limit_window_seconds: int = 60
+
     # Logging
     log_level: str = "INFO"
     
