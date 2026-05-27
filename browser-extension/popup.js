@@ -100,7 +100,7 @@ function setBusy(isBusy) {
   state.busy = isBusy;
   elements.loginButton.disabled = isBusy;
   elements.logoutButton.disabled = isBusy;
-  elements.analyzeButton.disabled = isBusy || !state.currentUser || !state.repository || state.branches.length === 0;
+  elements.analyzeButton.disabled = isBusy || !state.repository || state.branches.length === 0;
   elements.refreshButton.disabled = isBusy || !state.currentScan;
   elements.branchSelect.disabled = isBusy || !state.repository || state.branches.length === 0;
   elements.analyzeButton.textContent = isBusy ? 'Working...' : 'Analyze Repo';
@@ -109,7 +109,8 @@ function setBusy(isBusy) {
 function showMessage(title, text, tone = 'info') {
   elements.messageTitle.textContent = title;
   elements.messageText.textContent = text;
-  elements.messagePanel.classList.toggle('error', tone === 'error');
+  elements.messagePanel.classList.remove('info', 'success', 'notice', 'error');
+  elements.messagePanel.classList.add(tone);
   elements.messagePanel.hidden = false;
 }
 
@@ -117,7 +118,7 @@ function clearMessage() {
   elements.messagePanel.hidden = true;
   elements.messageTitle.textContent = '';
   elements.messageText.textContent = '';
-  elements.messagePanel.classList.remove('error');
+  elements.messagePanel.classList.remove('info', 'success', 'notice', 'error');
 }
 
 function parseGitHubRepository(rawUrl) {
@@ -233,12 +234,31 @@ function renderAuth() {
     elements.logoutButton.hidden = false;
   } else {
     elements.authStatus.textContent = 'Not signed in';
-    elements.authUserName.textContent = 'Login with GitHub to analyze repositories.';
+    elements.authUserName.textContent = 'Public repositories work without login.';
     elements.loginButton.hidden = false;
     elements.logoutButton.hidden = true;
   }
 
   setBusy(state.busy);
+}
+
+function isGitHubAccessError(error) {
+  const message = String(error && error.message ? error.message : '').toLowerCase();
+  return (
+    message.includes('does not have access') ||
+    message.includes('not found') ||
+    message.includes('private repositor') ||
+    message.includes('private repositorie')
+  );
+}
+
+function showPrivateRepoLoginMessage(action) {
+  const normalizedAction = action === 'scan' ? 'analyze this repository' : 'load its branches';
+  showMessage(
+    'Private repository detected',
+    `We couldn't ${normalizedAction} anonymously. If this repo is private, sign in with GitHub to continue.`,
+    'notice'
+  );
 }
 
 async function loadCurrentUser() {
@@ -277,7 +297,7 @@ async function startGitHubLogin() {
     if (state.repository) {
       await fetchBranches();
     }
-    showMessage('Signed in', 'Private repositories you can access can now be analyzed.');
+    showMessage('GitHub connected', 'You can now open and analyze private repositories you have access to.', 'success');
   } catch (error) {
     showMessage('Login failed', error.message, 'error');
   } finally {
@@ -294,7 +314,7 @@ async function logout() {
     await saveAccessToken('');
     state.currentUser = null;
     renderAuth();
-    showMessage('Logged out', 'Your GitHub session was cleared.');
+    showMessage('Signed out', 'You can still analyze public repositories without signing in.', 'info');
   } catch (error) {
     showMessage('Logout failed', error.message, 'error');
   } finally {
@@ -519,11 +539,6 @@ async function analyzeRepository() {
     return;
   }
 
-  if (!state.currentUser) {
-    showMessage('Login required', 'Login with GitHub before starting a repository analysis.', 'error');
-    return;
-  }
-
   setBusy(true);
   clearMessage();
 
@@ -538,8 +553,12 @@ async function analyzeRepository() {
     state.currentScan = scan;
     await saveCachedScan(scan);
     renderScan(scan);
-    showMessage('Scan complete', 'Latest repository metrics are loaded.');
+    showMessage('Scan complete', 'The latest repository metrics are ready.', 'success');
   } catch (error) {
+    if (!state.currentUser && isGitHubAccessError(error)) {
+      showPrivateRepoLoginMessage('scan');
+      return;
+    }
     showMessage('Analysis failed', error.message, 'error');
   } finally {
     setBusy(false);
@@ -556,7 +575,7 @@ async function refreshScan() {
   clearMessage();
   try {
     await fetchScanDetails(scanId);
-    showMessage('Scan refreshed', 'Loaded the latest saved details.');
+    showMessage('Scan refreshed', 'The saved report details are up to date.', 'success');
   } catch (error) {
     showMessage('Refresh failed', error.message, 'error');
   } finally {
@@ -618,6 +637,10 @@ async function initializePopup() {
       const branchResult = results[0];
       if (branchResult.status === 'rejected') {
         elements.branchSelect.replaceChildren(new Option('Unable to load branches', ''));
+        if (!state.currentUser && isGitHubAccessError(branchResult.reason)) {
+          showPrivateRepoLoginMessage('branches');
+          return;
+        }
         showMessage('Branch lookup failed', branchResult.reason.message, 'error');
       }
     });
