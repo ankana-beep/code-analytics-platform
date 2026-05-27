@@ -1,10 +1,6 @@
-"""
-Example Python client for Code Analytics Platform API.
-Demonstrates how to use the API programmatically.
-"""
+"""Example Python client for the current basic-scan API."""
 import requests
 import time
-import json
 from typing import Optional, Dict
 
 
@@ -17,27 +13,24 @@ class CodeAnalyticsClient:
     
     def create_scan(
         self,
-        repository_path: str,
+        repository_url: str,
         branch: str = "main",
-        incremental: bool = False
     ) -> Dict:
         """
-        Create a new repository scan.
+        Create a new public GitHub repository scan.
         
         Args:
-            repository_path: Path to repository
+            repository_url: Public GitHub repository URL
             branch: Git branch to scan
-            incremental: Enable incremental scanning
             
         Returns:
-            Response with scan_id and job_id
+            Completed scan payload
         """
         response = requests.post(
-            f"{self.api_url}/scans",
+            f"{self.api_url}/basic-scans",
             json={
-                "repository_path": repository_path,
+                "repository_url": repository_url,
                 "branch": branch,
-                "incremental": incremental
             }
         )
         response.raise_for_status()
@@ -53,7 +46,7 @@ class CodeAnalyticsClient:
         Returns:
             Scan details
         """
-        response = requests.get(f"{self.api_url}/scans/{scan_id}")
+        response = requests.get(f"{self.api_url}/basic-scans/{scan_id}")
         response.raise_for_status()
         return response.json()
     
@@ -67,7 +60,7 @@ class CodeAnalyticsClient:
         Returns:
             Status and progress information
         """
-        response = requests.get(f"{self.api_url}/scans/{scan_id}/status")
+        response = requests.get(f"{self.api_url}/basic-scans/{scan_id}/status")
         response.raise_for_status()
         return response.json()
     
@@ -75,54 +68,19 @@ class CodeAnalyticsClient:
         self,
         skip: int = 0,
         limit: int = 10,
-        repository_path: Optional[str] = None,
-        status: Optional[str] = None
     ) -> list:
         """
-        List scans with pagination and filtering.
+        List scans with pagination.
         
         Args:
             skip: Number of records to skip
             limit: Maximum records to return
-            repository_path: Filter by repository
-            status: Filter by status
             
         Returns:
             List of scans
         """
         params = {"skip": skip, "limit": limit}
-        
-        if repository_path:
-            params["repository_path"] = repository_path
-        
-        if status:
-            params["status"] = status
-        
-        response = requests.get(f"{self.api_url}/scans", params=params)
-        response.raise_for_status()
-        return response.json()
-    
-    def get_scan_files(
-        self,
-        scan_id: str,
-        skip: int = 0,
-        limit: int = 100
-    ) -> list:
-        """
-        Get file-level metrics for a scan.
-        
-        Args:
-            scan_id: Scan identifier
-            skip: Number of records to skip
-            limit: Maximum records to return
-            
-        Returns:
-            List of file metrics
-        """
-        response = requests.get(
-            f"{self.api_url}/scans/{scan_id}/files",
-            params={"skip": skip, "limit": limit}
-        )
+        response = requests.get(f"{self.api_url}/basic-scans", params=params)
         response.raise_for_status()
         return response.json()
     
@@ -178,14 +136,12 @@ if __name__ == "__main__":
     # Create a scan
     print("Creating scan...")
     scan_response = client.create_scan(
-        repository_path="/repositories/my-project",
+        repository_url="https://github.com/octocat/Hello-World",
         branch="main",
-        incremental=False
     )
     
-    scan_id = scan_response['scan_id']
+    scan_id = scan_response["id"]
     print(f"Scan created: {scan_id}")
-    print(f"Job ID: {scan_response['job_id']}")
     print()
     
     # Wait for scan to complete
@@ -196,29 +152,16 @@ if __name__ == "__main__":
         print("\nScan completed!")
         print(f"Status: {scan['status']}")
         
-        if scan['metrics']:
-            metrics = scan['metrics']
+        if scan.get("metrics"):
+            metrics = scan["metrics"]
             print(f"\nResults:")
             print(f"  Total Files: {metrics['total_files']}")
-            print(f"  Lines of Code: {metrics['total_lines_of_code']}")
-            print(f"  Comment Lines: {metrics['total_comment_lines']}")
-            print(f"  Docstring Coverage: {metrics['docstring_coverage']:.1f}%")
+            print(f"  Total Lines: {metrics['total_lines']}")
+            print(f"  Code Lines: {metrics['code_lines']}")
+            print(f"  Comment Lines: {metrics['comment_lines']}")
             print(f"  TODO Count: {metrics['todo_count']}")
             print(f"  FIXME Count: {metrics['fixme_count']}")
-            
-            if metrics['complexity_metrics']:
-                complexity = metrics['complexity_metrics']
-                print(f"  Avg Cyclomatic Complexity: {complexity['avg_cyclomatic_complexity']:.1f}")
-                print(f"  Max Cyclomatic Complexity: {complexity['max_cyclomatic_complexity']}")
-        
-        # Get file metrics
-        print("\nFetching file metrics...")
-        files = client.get_scan_files(scan_id, limit=5)
-        
-        print(f"\nTop 5 files:")
-        for file in files:
-            print(f"  - {file['file_path']}")
-            print(f"    LOC: {file['lines_of_code']}, Complexity: {file['cyclomatic_complexity']}")
+            print(f"  Scan Duration: {metrics['scan_duration']}s")
     
     except TimeoutError as e:
         print(f"Error: {e}")

@@ -25,7 +25,6 @@ class Settings(BaseSettings):
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
-    workers: int = 4
     
     # MongoDB
     mongodb_url: str = Field(
@@ -36,9 +35,12 @@ class Settings(BaseSettings):
     mongodb_max_pool_size: int = 100
     mongodb_min_pool_size: int = 10
 
-    # Observability
-    enable_metrics: bool = True
-    enable_tracing: bool = True
+    # Cache
+    redis_url: str | None = "redis://redis:6379/0"
+    cache_enabled: bool = True
+    cache_ttl_seconds: int = 300
+
+    # Logging
     log_level: str = "INFO"
     
     # CORS

@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.logging import logger
 from app.core.database import mongodb_manager
-from app.core.metrics import metrics
+from app.core.cache import cache_manager
 from app.api.v1 import basic_scans, github, health
 
 
@@ -36,6 +36,8 @@ async def lifespan(app: FastAPI):
                 "Starting in foundation mode without MongoDB",
                 extra={"error": str(exc)}
             )
+
+        await cache_manager.connect()
         
         yield
     
@@ -43,6 +45,7 @@ async def lifespan(app: FastAPI):
         # Shutdown
         logger.info("Shutting down Code Analytics Platform")
         
+        await cache_manager.disconnect()
         await mongodb_manager.disconnect()
         
         logger.info("Database disconnected")
@@ -73,14 +76,13 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
-# Request Logging and Metrics Middleware
+# Request Logging Middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     """
-    Log all HTTP requests and record metrics.
-    
-    Captures request details, response time, and status codes
-    for observability and performance monitoring.
+    Log all HTTP requests.
+
+    Captures request details, response time, and status codes.
     """
     start_time = time.time()
     
@@ -100,14 +102,6 @@ async def log_requests(request: Request, call_next):
         
         # Calculate duration
         duration = time.time() - start_time
-        
-        # Record metrics
-        metrics.record_request(
-            method=request.method,
-            endpoint=request.url.path,
-            status=response.status_code,
-            duration=duration
-        )
         
         # Log response
         logger.info(
@@ -137,14 +131,6 @@ async def log_requests(request: Request, call_next):
                 "duration": duration
             },
             exc_info=True
-        )
-        
-        # Record error metrics
-        metrics.record_request(
-            method=request.method,
-            endpoint=request.url.path,
-            status=500,
-            duration=duration
         )
         
         raise
@@ -202,7 +188,6 @@ if __name__ == "__main__":
         "app.main:app",
         host=settings.host,
         port=settings.port,
-        workers=settings.workers,
         log_config=None,  # Use our custom logging
         access_log=False  # Handled by middleware
     )
