@@ -26,6 +26,18 @@
         <p id="messageText"></p>
       </section>
 
+      <section class="auth-panel">
+        <div>
+          <span class="label">GitHub account</span>
+          <strong id="authStatus">Checking session...</strong>
+          <span id="authUserName"></span>
+        </div>
+        <div class="auth-actions">
+          <button id="loginButton" class="primary-button compact-button" type="button">Login</button>
+          <button id="logoutButton" class="secondary-button compact-button" type="button" hidden>Logout</button>
+        </div>
+      </section>
+
       <section id="repoPanel" class="repo-panel">
         <div class="repo-heading">
           <div>

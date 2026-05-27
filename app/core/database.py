@@ -52,6 +52,9 @@ class MongoDBManager:
         await self.database.basic_scans.create_index("branch")
         await self.database.basic_scans.create_index("status")
         await self.database.basic_scans.create_index("created_at")
+        await self.database.users.create_index("github_id", unique=True)
+        await self.database.users.create_index("login")
+        await self.database.users.create_index("last_login_at")
         
         logger.info("Database indexes created successfully")
     

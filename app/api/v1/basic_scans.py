@@ -1,15 +1,18 @@
-"""No-auth, database-backed scan routes for the foundation product flow."""
+"""Database-backed scan routes for public and authenticated GitHub repositories."""
 import asyncio
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pydantic import BaseModel, Field
 
+from app.core.auth import get_optional_current_user
 from app.core.database import mongodb_manager
 from app.core.logging import logger
+from app.domain.models import UserProfile
 from app.services.basic_scanner_service import BasicScannerError, run_basic_scan
-from app.services.github_service import GitHubError, list_public_branches, parse_github_repository
+from app.services.github_service import GitHubError, list_repository_branches, parse_github_repository
+from app.services.user_service import get_github_access_token
 
 
 router = APIRouter(prefix="/basic-scans", tags=["basic-scans"])
@@ -17,7 +20,7 @@ SCAN_RESULTS: dict[str, dict[str, Any]] = {}
 
 
 class BasicScanRequest(BaseModel):
-    repository_url: str = Field(..., description="Public GitHub repository URL")
+    repository_url: str = Field(..., description="GitHub repository URL")
     branch: str = Field(default="main", description="Branch to scan")
 
 
@@ -51,11 +54,32 @@ async def _load_basic_scan(scan_id: str) -> dict[str, Any] | None:
     return SCAN_RESULTS.get(scan_id)
 
 
+async def _github_token_for_user(user: UserProfile | None) -> str | None:
+    """Return the user's GitHub token when the request is authenticated."""
+    if user is None:
+        return None
+    return await get_github_access_token(user.github_id)
+
+
 @router.post("", status_code=201)
-async def create_basic_scan(request: BasicScanRequest) -> dict[str, Any]:
-    """Validate, fetch, scan, score, and store a public GitHub repository report."""
+async def create_basic_scan(
+    request: BasicScanRequest,
+    current_user: UserProfile | None = Depends(get_optional_current_user),
+) -> dict[str, Any]:
+    """Validate, fetch, scan, score, and store a GitHub repository report.
+
+    Anonymous requests can scan public repositories. Authenticated requests use
+    the caller's GitHub OAuth token, allowing private repositories that GitHub
+    says the caller can access.
+    """
     try:
-        scan = await asyncio.to_thread(run_basic_scan, request.repository_url, request.branch)
+        github_token = await _github_token_for_user(current_user)
+        scan = await asyncio.to_thread(
+            run_basic_scan,
+            request.repository_url,
+            request.branch,
+            github_token,
+        )
     except (BasicScannerError, GitHubError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -88,17 +112,26 @@ async def list_basic_scans(
 
 
 @router.get("/branches")
-async def list_basic_scan_branches(repository_url: str = Query(...)) -> list[dict[str, str]]:
-    """Return branches for a public GitHub repository URL without requiring auth."""
+async def list_basic_scan_branches(
+    repository_url: str = Query(...),
+    current_user: UserProfile | None = Depends(get_optional_current_user),
+) -> list[dict[str, str]]:
+    """Return branches for a public repository or authenticated private repository."""
     repository = parse_github_repository(repository_url)
     if not repository:
         raise HTTPException(
             status_code=400,
-            detail="Enter a valid public GitHub repository URL like https://github.com/owner/repo"
+            detail="Enter a valid GitHub repository URL like https://github.com/owner/repo"
         )
 
     try:
-        return await asyncio.to_thread(list_public_branches, repository.owner, repository.repo)
+        github_token = await _github_token_for_user(current_user)
+        return await asyncio.to_thread(
+            list_repository_branches,
+            repository.owner,
+            repository.repo,
+            github_token,
+        )
     except GitHubError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
