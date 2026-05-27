@@ -157,6 +157,7 @@ services:
     # profiles:
     #   - monitoring
 
+
 volumes:
   mongodb_data:
     driver: local
