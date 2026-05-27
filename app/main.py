@@ -13,7 +13,6 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.core.database import mongodb_manager
 from app.core.cache import cache_manager
-from app.core.metrics import metrics
 from app.api.v1 import auth, basic_scans, github, health
 
 
