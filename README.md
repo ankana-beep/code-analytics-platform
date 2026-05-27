@@ -2,12 +2,13 @@
 
 Lightweight code analytics for public GitHub repositories.
 
-The app now runs with a simpler flow:
+The app now runs with an API-first browser extension flow:
 
-- React frontend for starting scans and viewing results
 - FastAPI backend for GitHub lookup, scan execution, and persistence
+- Browser extension for starting scans and viewing reports
 - MongoDB for saved scan results
 - Redis for short-lived GitHub metadata caching
+- No separate frontend service
 - No separate worker service
 - No queue/worker stack
 - No Prometheus/Grafana monitoring stack in Docker Compose
@@ -15,30 +16,30 @@ The app now runs with a simpler flow:
 ## Current Flow
 
 ```text
-Frontend
+Browser extension popup
   -> POST /api/v1/basic-scans
   -> GET /api/v1/github/... can be served from Redis cache
   -> FastAPI validates the repository URL
   -> FastAPI downloads the selected GitHub branch tarball
   -> FastAPI scans supported files in-process
   -> FastAPI stores the finished result in MongoDB
-  -> Frontend reads scan list/detail/status from the same API
+  -> Extension report page opens chrome-extension://{extensionId}/report.html?scan_id=...
+  -> Extension report page reads scan list/detail/status from the same API
 ```
 
-This keeps the existing scan endpoints intact while removing the extra worker-oriented deployment pieces.
+This keeps the existing scan endpoints intact while removing the frontend and extra worker-oriented deployment pieces.
 
 ## Services
 
 Docker Compose now starts only:
 
-- `frontend`
 - `api`
 - `mongodb`
 - `redis`
 
 ## API Surface
 
-The main routes used by the frontend are unchanged:
+The main routes used by the extension are:
 
 - `POST /api/v1/basic-scans`
 - `GET /api/v1/basic-scans`
@@ -58,7 +59,6 @@ docker compose up --build
 
 Open:
 
-- Frontend: http://localhost:3000
 - API: http://localhost:8000
 - Health: http://localhost:8000/api/v1/health
 - API docs: http://localhost:8000/docs
@@ -72,13 +72,13 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Frontend:
+Browser extension:
 
-```bash
-cd frontend
-npm install
-npm run dev -- --host 127.0.0.1
-```
+1. Open `chrome://extensions` or `edge://extensions`.
+2. Enable Developer mode.
+3. Click **Load unpacked**.
+4. Select the `browser-extension` folder.
+5. Visit a GitHub repository and use the extension popup.
 
 ## Environment
 
@@ -112,5 +112,6 @@ Useful checks:
 ```bash
 python -m compileall app
 docker compose config
-cd frontend && npm run build
+node --check browser-extension/popup.js
+node --check browser-extension/report.js
 ```

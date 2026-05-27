@@ -1,6 +1,5 @@
 const DEFAULT_SETTINGS = {
-  apiBaseUrl: 'http://localhost:8000/api/v1',
-  appUrl: 'http://localhost:5173'
+  apiBaseUrl: 'http://localhost:8000/api/v1'
 };
 
 const IGNORED_GITHUB_ROOTS = new Set([
@@ -30,13 +29,14 @@ const IGNORED_GITHUB_ROOTS = new Set([
   'trending'
 ]);
 
-const REPO_ALLOWED_MODES = new Set(['tree']);
+const REPO_ALLOWED_MODES = new Set(['tree', 'blob']);
 
 const state = {
   settings: { ...DEFAULT_SETTINGS },
   accessToken: '',
   currentUser: null,
   repository: null,
+  activeTabUrl: '',
   branches: [],
   selectedBranch: '',
   currentScan: null,
@@ -144,12 +144,14 @@ function parseGitHubRepository(rawUrl) {
   }
 
   let branchFromUrl = '';
+  let refPathParts = [];
   if (parts.length > 2) {
-    const mode = parts[2];
+    const mode = parts[2].toLowerCase();
     if (!REPO_ALLOWED_MODES.has(mode)) {
       return null;
     }
-    branchFromUrl = decodeURIComponent(parts.slice(3).join('/'));
+    refPathParts = parts.slice(3).map((part) => decodeURIComponent(part));
+    branchFromUrl = refPathParts[0] || '';
   }
 
   return {
@@ -157,7 +159,9 @@ function parseGitHubRepository(rawUrl) {
     repo,
     fullName: `${owner}/${repo}`,
     repositoryUrl: `https://github.com/${owner}/${repo}`,
-    branchFromUrl
+    branchFromUrl,
+    refPathParts,
+    githubPath: `${url.pathname}${url.search}${url.hash}`
   };
 }
 
@@ -169,8 +173,7 @@ async function getActiveTab() {
 async function loadSettings() {
   const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   state.settings = {
-    apiBaseUrl: normalizeBaseUrl(settings.apiBaseUrl || DEFAULT_SETTINGS.apiBaseUrl),
-    appUrl: normalizeBaseUrl(settings.appUrl || DEFAULT_SETTINGS.appUrl)
+    apiBaseUrl: normalizeBaseUrl(settings.apiBaseUrl || DEFAULT_SETTINGS.apiBaseUrl)
   };
 }
 
@@ -318,8 +321,17 @@ async function fetchBranches() {
 
 function pickDefaultBranch() {
   const branchNames = state.branches.map((branch) => branch.name);
-  if (state.repository.branchFromUrl && branchNames.includes(state.repository.branchFromUrl)) {
-    return state.repository.branchFromUrl;
+  const refPathParts = state.repository.refPathParts || [];
+  const branchFromPath = branchNames
+    .slice()
+    .sort((a, b) => b.split('/').length - a.split('/').length)
+    .find((branchName) => {
+      const branchParts = branchName.split('/');
+      return branchParts.every((part, index) => refPathParts[index] === part);
+    });
+
+  if (branchFromPath) {
+    return branchFromPath;
   }
   if (branchNames.includes('main')) {
     return 'main';
@@ -472,6 +484,36 @@ function renderScan(scan) {
   setBusy(state.busy);
 }
 
+function getCurrentScanId() {
+  return state.currentScan && (state.currentScan.id || state.currentScan._id);
+}
+
+function buildExtensionReportUrl() {
+  const scanId = getCurrentScanId();
+  const target = new URL(chrome.runtime.getURL('report.html'));
+
+  target.searchParams.set('source', 'extension');
+
+  if (scanId) {
+    target.searchParams.set('scan_id', scanId);
+  }
+
+  if (state.repository) {
+    target.searchParams.set('repository_url', state.repository.repositoryUrl);
+    target.searchParams.set('github_path', state.repository.githubPath || '');
+  }
+
+  if (state.selectedBranch) {
+    target.searchParams.set('branch', state.selectedBranch);
+  }
+
+  if (state.activeTabUrl) {
+    target.searchParams.set('github_url', state.activeTabUrl);
+  }
+
+  return target.toString();
+}
+
 async function analyzeRepository() {
   if (!state.repository || !state.selectedBranch) {
     return;
@@ -523,11 +565,7 @@ async function refreshScan() {
 }
 
 function openApp() {
-  const scanId = state.currentScan && (state.currentScan.id || state.currentScan._id);
-  const target = scanId
-    ? `${state.settings.appUrl}/scans/${encodeURIComponent(scanId)}`
-    : state.settings.appUrl;
-  chrome.tabs.create({ url: target });
+  chrome.tabs.create({ url: buildExtensionReportUrl() });
 }
 
 function renderRepository(repository) {
@@ -562,6 +600,7 @@ async function initializePopup() {
 
     const tab = await getActiveTab();
     const repository = tab && tab.url ? parseGitHubRepository(tab.url) : null;
+    state.activeTabUrl = tab && tab.url ? tab.url : '';
 
     if (!repository) {
       renderUnsupported();

@@ -1,14 +1,14 @@
 # Setup Guide
 
-The project has been simplified to a single API process plus MongoDB.
+The project has been simplified to an API process plus a browser extension.
 
 ## What Runs
 
-- `frontend`
 - `api`
 - `mongodb`
+- `redis`
 
-There is no separate worker, Redis queue, or monitoring stack in the default setup.
+There is no separate frontend service, worker, Redis queue, or monitoring stack in the default setup.
 
 ## Start With Docker
 
@@ -26,13 +26,12 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Frontend:
+Browser extension:
 
-```bash
-cd frontend
-npm install
-npm run dev -- --host 127.0.0.1
-```
+1. Open `chrome://extensions` or `edge://extensions`.
+2. Enable Developer mode.
+3. Click **Load unpacked**.
+4. Select the `browser-extension` folder.
 
 ## Verify
 
@@ -40,6 +39,8 @@ npm run dev -- --host 127.0.0.1
 curl http://localhost:8000/api/v1/health
 python -m compileall app
 docker compose config
+node --check browser-extension/popup.js
+node --check browser-extension/report.js
 ```
 
 ## First Scan
@@ -53,4 +54,4 @@ curl -X POST http://localhost:8000/api/v1/basic-scans \
   }'
 ```
 
-For the current request/response flow and route list, use [README.md](/home/sourabh/code-analytics-platform/README.md) and [API.md](/home/sourabh/code-analytics-platform/API.md).
+For the current request/response flow and route list, use [README.md](README.md) and [API.md](API.md).
