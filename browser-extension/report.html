@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Code Analytics Report</title>
+    <link rel="stylesheet" href="report.css">
+  </head>
+  <body>
+    <main class="report-shell">
+      <header class="report-header">
+        <div>
+          <p class="eyebrow">Chrome Extension Report</p>
+          <h1 id="reportTitle">Code Analytics</h1>
+          <p id="reportSubtitle">Loading scan metrics...</p>
+        </div>
+        <a id="githubLink" class="link-button" href="#" target="_blank" rel="noreferrer" hidden>GitHub</a>
+      </header>
+
+      <section id="messagePanel" class="message-panel" hidden>
+        <strong id="messageTitle"></strong>
+        <p id="messageText"></p>
+      </section>
+
+      <section class="summary-grid">
+        <article class="summary-card primary">
+          <span>Health</span>
+          <strong id="healthScore">--</strong>
+          <p id="healthStatus">Waiting</p>
+        </article>
+        <article class="summary-card">
+          <span>Status</span>
+          <strong id="scanStatus">--</strong>
+          <p id="scanProgress">0%</p>
+        </article>
+        <article class="summary-card">
+          <span>Files</span>
+          <strong id="totalFiles">--</strong>
+          <p>Total files</p>
+        </article>
+        <article class="summary-card">
+          <span>LOC</span>
+          <strong id="totalLoc">--</strong>
+          <p>Code lines</p>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Repository</p>
+            <h2>Source Context</h2>
+          </div>
+        </div>
+        <dl id="contextList" class="definition-grid"></dl>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Metrics</p>
+            <h2>Full Metrics</h2>
+          </div>
+        </div>
+        <div id="metricsGrid" class="metrics-grid"></div>
+      </section>
+
+      <section class="two-column">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Types</p>
+              <h2>File Types</h2>
+            </div>
+          </div>
+          <div id="fileTypesList" class="key-value-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Complexity</p>
+              <h2>Complexity Metrics</h2>
+            </div>
+          </div>
+          <dl id="complexityList" class="definition-grid"></dl>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Files</p>
+            <h2>Largest Files</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Total</th>
+                <th>Code</th>
+                <th>Comments</th>
+                <th>Blank</th>
+                <th>TODOs</th>
+              </tr>
+            </thead>
+            <tbody id="largestFilesBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Folders</p>
+            <h2>Folder Statistics</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Folder</th>
+                <th>Files</th>
+                <th>Lines</th>
+                <th>Size</th>
+                <th>Avg Complexity</th>
+              </tr>
+            </thead>
+            <tbody id="folderStatsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Quality</p>
+            <h2>Issues</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Severity</th>
+                <th>Type</th>
+                <th>File</th>
+                <th>Line</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody id="issuesBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="two-column">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Suggestions</p>
+              <h2>Next Improvements</h2>
+            </div>
+          </div>
+          <ul id="suggestionsList" class="compact-list"></ul>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Dependencies</p>
+              <h2>Package Summary</h2>
+            </div>
+          </div>
+          <dl id="dependencyList" class="definition-grid"></dl>
+        </article>
+      </section>
+    </main>
+
+    <script src="report.js"></script>
+  </body>
+</html>
