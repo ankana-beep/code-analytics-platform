@@ -1,6 +1,6 @@
 # Code Analytics Browser Extension
 
-Manifest V3 prototype for Chrome and Edge. It detects a GitHub repository tab, fetches branches from the Code Analytics API, starts a scan, caches the latest scan ID per repository, and shows compact scan metrics in the popup.
+Manifest V3 prototype for Chrome and Edge. It detects a GitHub repository tab, authenticates with GitHub through the backend when needed, fetches branches from the Code Analytics API, starts a scan, caches the latest scan ID per repository, and shows compact scan metrics in the popup.
 
 ## Files
 
@@ -14,6 +14,7 @@ Manifest V3 prototype for Chrome and Edge. It detects a GitHub repository tab, f
 - App URL: `http://localhost:5173`
 
 Settings are saved in `chrome.storage.sync`. Latest scan IDs are saved in `chrome.storage.local` using the canonical repository URL.
+The extension stores the backend JWT in `chrome.storage.local` after GitHub login and sends it as a Bearer token for private repository branch lookup and scans.
 
 ## Load In Chrome Or Edge
 
@@ -24,7 +25,8 @@ Settings are saved in `chrome.storage.sync`. Latest scan IDs are saved in `chrom
 5. Click **Load unpacked**.
 6. Select this `browser-extension` folder.
 7. Visit a repository URL such as `https://github.com/owner/repo`.
-8. Click the extension icon, choose a branch, and click **Analyze Repo**.
+8. For private repositories, click **Login** in the popup and approve GitHub repository access.
+9. Choose a branch and click **Analyze Repo**.
 
 ## Validation
 

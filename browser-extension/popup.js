@@ -34,6 +34,8 @@ const REPO_ALLOWED_MODES = new Set(['tree']);
 
 const state = {
   settings: { ...DEFAULT_SETTINGS },
+  accessToken: '',
+  currentUser: null,
   repository: null,
   branches: [],
   selectedBranch: '',
@@ -47,6 +49,10 @@ const elements = {
   messagePanel: document.getElementById('messagePanel'),
   messageTitle: document.getElementById('messageTitle'),
   messageText: document.getElementById('messageText'),
+  authStatus: document.getElementById('authStatus'),
+  authUserName: document.getElementById('authUserName'),
+  loginButton: document.getElementById('loginButton'),
+  logoutButton: document.getElementById('logoutButton'),
   repoName: document.getElementById('repoName'),
   branchHint: document.getElementById('branchHint'),
   branchSelect: document.getElementById('branchSelect'),
@@ -72,6 +78,8 @@ function storageKey(repositoryUrl) {
   return `latestScan:${repositoryUrl}`;
 }
 
+const AUTH_STORAGE_KEY = 'auth:accessToken';
+
 function formatNumber(value) {
   return Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '--';
 }
@@ -90,7 +98,9 @@ function normalizeBaseUrl(value) {
 
 function setBusy(isBusy) {
   state.busy = isBusy;
-  elements.analyzeButton.disabled = isBusy || !state.repository || state.branches.length === 0;
+  elements.loginButton.disabled = isBusy;
+  elements.logoutButton.disabled = isBusy;
+  elements.analyzeButton.disabled = isBusy || !state.currentUser || !state.repository || state.branches.length === 0;
   elements.refreshButton.disabled = isBusy || !state.currentScan;
   elements.branchSelect.disabled = isBusy || !state.repository || state.branches.length === 0;
   elements.analyzeButton.textContent = isBusy ? 'Working...' : 'Analyze Repo';
@@ -164,12 +174,32 @@ async function loadSettings() {
   };
 }
 
+async function loadStoredAccessToken() {
+  const stored = await chrome.storage.local.get(AUTH_STORAGE_KEY);
+  state.accessToken = stored[AUTH_STORAGE_KEY] || '';
+}
+
+async function saveAccessToken(token) {
+  state.accessToken = token;
+  if (token) {
+    await chrome.storage.local.set({ [AUTH_STORAGE_KEY]: token });
+    return;
+  }
+  await chrome.storage.local.remove(AUTH_STORAGE_KEY);
+}
+
 async function apiFetch(path, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {})
+  };
+  if (state.accessToken) {
+    headers.Authorization = `Bearer ${state.accessToken}`;
+  }
+
   const response = await fetch(`${state.settings.apiBaseUrl}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    },
+    credentials: 'include',
+    headers,
     ...options
   });
 
@@ -189,6 +219,94 @@ async function apiFetch(path, options = {}) {
   }
 
   return body;
+}
+
+function renderAuth() {
+  if (state.currentUser) {
+    const displayName = state.currentUser.name || state.currentUser.login;
+    elements.authStatus.textContent = 'Signed in';
+    elements.authUserName.textContent = displayName ? `@${state.currentUser.login}` : '';
+    elements.loginButton.hidden = true;
+    elements.logoutButton.hidden = false;
+  } else {
+    elements.authStatus.textContent = 'Not signed in';
+    elements.authUserName.textContent = 'Login with GitHub to analyze repositories.';
+    elements.loginButton.hidden = false;
+    elements.logoutButton.hidden = true;
+  }
+
+  setBusy(state.busy);
+}
+
+async function loadCurrentUser() {
+  try {
+    state.currentUser = await apiFetch('/auth/github/user');
+  } catch {
+    state.currentUser = null;
+    if (state.accessToken) {
+      await saveAccessToken('');
+    }
+  }
+
+  renderAuth();
+}
+
+async function startGitHubLogin() {
+  setBusy(true);
+  clearMessage();
+
+  try {
+    const extensionRedirectUrl = chrome.identity.getRedirectURL('github');
+    const body = await apiFetch(
+      `/auth/github/login?extension_redirect_url=${encodeURIComponent(extensionRedirectUrl)}`
+    );
+    if (!body || !body.authorization_url) {
+      throw new Error('Backend did not return a GitHub authorization URL.');
+    }
+
+    const callbackUrl = await chrome.identity.launchWebAuthFlow({
+      url: body.authorization_url,
+      interactive: true
+    });
+    const token = parseAccessTokenFromCallback(callbackUrl);
+    await saveAccessToken(token);
+    await loadCurrentUser();
+    if (state.repository) {
+      await fetchBranches();
+    }
+    showMessage('Signed in', 'Private repositories you can access can now be analyzed.');
+  } catch (error) {
+    showMessage('Login failed', error.message, 'error');
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function logout() {
+  setBusy(true);
+  clearMessage();
+
+  try {
+    await apiFetch('/auth/github/logout', { method: 'POST' });
+    await saveAccessToken('');
+    state.currentUser = null;
+    renderAuth();
+    showMessage('Logged out', 'Your GitHub session was cleared.');
+  } catch (error) {
+    showMessage('Logout failed', error.message, 'error');
+  } finally {
+    setBusy(false);
+  }
+}
+
+function parseAccessTokenFromCallback(callbackUrl) {
+  const url = new URL(callbackUrl);
+  const params = new URLSearchParams(url.hash.replace(/^#/, ''));
+  const token = params.get('access_token');
+  if (!token) {
+    throw new Error('Authentication completed without an access token.');
+  }
+  return token;
 }
 
 async function fetchBranches() {
@@ -359,6 +477,11 @@ async function analyzeRepository() {
     return;
   }
 
+  if (!state.currentUser) {
+    showMessage('Login required', 'Login with GitHub before starting a repository analysis.', 'error');
+    return;
+  }
+
   setBusy(true);
   clearMessage();
 
@@ -434,6 +557,9 @@ async function initializePopup() {
 
   try {
     await loadSettings();
+    await loadStoredAccessToken();
+    await loadCurrentUser();
+
     const tab = await getActiveTab();
     const repository = tab && tab.url ? parseGitHubRepository(tab.url) : null;
 
@@ -470,6 +596,8 @@ elements.branchSelect.addEventListener('change', (event) => {
 elements.analyzeButton.addEventListener('click', analyzeRepository);
 elements.refreshButton.addEventListener('click', refreshScan);
 elements.openAppButton.addEventListener('click', openApp);
+elements.loginButton.addEventListener('click', startGitHubLogin);
+elements.logoutButton.addEventListener('click', logout);
 elements.settingsButton.addEventListener('click', () => chrome.runtime.openOptionsPage());
 
 initializePopup();

@@ -35,7 +35,7 @@ class GitHubRepositoryRef:
 
 
 def parse_github_repository(value: str) -> Optional[GitHubRepositoryRef]:
-    """Parse a public GitHub repository URL."""
+    """Parse a GitHub repository URL."""
     normalized = value.strip()
     match = GITHUB_REPO_URL_RE.match(normalized)
     if not match:
@@ -57,15 +57,19 @@ def is_valid_repo(value: str) -> bool:
     return bool(GITHUB_REPO_RE.match(value.strip()))
 
 
-def github_api_get(path: str) -> Any:
-    """GET JSON from the GitHub API using only public unauthenticated access."""
+def github_api_get(path: str, access_token: str | None = None) -> Any:
+    """GET JSON from the GitHub API, optionally using a user OAuth token."""
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "code-analytics-platform",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if access_token:
+        headers["Authorization"] = f"Bearer {access_token}"
+
     request = urllib.request.Request(
         f"https://api.github.com{path}",
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "code-analytics-platform",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
+        headers=headers,
     )
 
     try:
@@ -73,7 +77,7 @@ def github_api_get(path: str) -> Any:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
-            raise GitHubError("GitHub resource was not found or is not public") from exc
+            raise GitHubError("GitHub resource was not found or your GitHub account does not have access") from exc
         if exc.code == 403:
             raise GitHubError("GitHub API rate limit reached. Try again later.") from exc
         raise GitHubError(f"GitHub API request failed with status {exc.code}") from exc
@@ -104,13 +108,14 @@ def list_public_repositories(username: str) -> List[Dict[str, Any]]:
     ]
 
 
-def list_public_branches(owner: str, repo: str) -> List[Dict[str, str]]:
-    """Return branches for a public GitHub repository."""
+def list_repository_branches(owner: str, repo: str, access_token: str | None = None) -> List[Dict[str, str]]:
+    """Return branches for a GitHub repository the request can access."""
     if not is_valid_owner(owner) or not is_valid_repo(repo):
-        raise GitHubError("Enter a valid public GitHub repository")
+        raise GitHubError("Enter a valid GitHub repository")
 
     branches = github_api_get(
-        f"/repos/{urllib.parse.quote(owner, safe='')}/{urllib.parse.quote(repo, safe='')}/branches?per_page=100"
+        f"/repos/{urllib.parse.quote(owner, safe='')}/{urllib.parse.quote(repo, safe='')}/branches?per_page=100",
+        access_token=access_token,
     )
     return [
         {

@@ -48,6 +48,34 @@ class Settings(BaseSettings):
         default_factory=lambda: ["*"]
     )
 
+    # Authentication
+    jwt_secret_key: str | None = Field(
+        default=None,
+        description="Secret key used to sign application JWTs",
+    )
+    jwt_algorithm: str = "HS256"
+    jwt_issuer: str = "code-analytics-platform"
+    access_token_expire_minutes: int = 60
+    session_ttl: int = 3600
+    auth_token_cookie_name: str = "cap_access_token"
+    auth_cookie_secure: bool = True
+    auth_cookie_samesite: str = "lax"
+
+    # GitHub OAuth
+    github_client_id: str | None = Field(
+        default=None,
+        description="GitHub OAuth application client ID",
+    )
+    github_client_secret: str | None = Field(
+        default=None,
+        description="GitHub OAuth application client secret",
+    )
+    github_oauth_callback_url: str | None = Field(
+        default=None,
+        description="Backend callback URL registered with the GitHub OAuth app",
+    )
+    github_oauth_timeout_seconds: float = 10.0
+
 
 # Global settings instance
 settings = Settings()

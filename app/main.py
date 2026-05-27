@@ -13,7 +13,8 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.core.database import mongodb_manager
 from app.core.cache import cache_manager
-from app.api.v1 import basic_scans, github, health
+from app.core.metrics import metrics
+from app.api.v1 import auth, basic_scans, github, health
 
 
 @asynccontextmanager
@@ -165,6 +166,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include routers
 app.include_router(health.router, prefix=settings.api_v1_prefix)
+app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(basic_scans.router, prefix=settings.api_v1_prefix)
 app.include_router(github.router, prefix=settings.api_v1_prefix)
 

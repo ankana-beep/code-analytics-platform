@@ -1,7 +1,8 @@
-"""Foundation scanner for public GitHub repositories.
+"""Foundation scanner for GitHub repositories.
 
 This module intentionally keeps execution simple: scans run synchronously and
-public GitHub archives are downloaded without cloning.
+GitHub archives are downloaded without cloning. Public repositories work without
+authentication; private repositories require a GitHub OAuth token with access.
 """
 from __future__ import annotations
 
@@ -77,21 +78,28 @@ class BasicScannerError(ValueError):
     """Raised when a foundation scan cannot complete."""
 
 
-def _download_github_archive(owner: str, repo: str, branch: str, destination: Path) -> None:
+def _download_github_archive(
+    owner: str,
+    repo: str,
+    branch: str,
+    destination: Path,
+    access_token: str | None = None,
+) -> None:
     encoded_owner = urllib.parse.quote(owner, safe="")
     encoded_repo = urllib.parse.quote(repo, safe="")
     encoded_branch = urllib.parse.quote(branch or "main", safe="")
     archive_url = f"https://api.github.com/repos/{encoded_owner}/{encoded_repo}/tarball/{encoded_branch}"
     archive_path = destination / "repo.tar.gz"
 
-    request = urllib.request.Request(
-        archive_url,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "code-analytics-platform",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-    )
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "code-analytics-platform",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if access_token:
+        headers["Authorization"] = f"Bearer {access_token}"
+
+    request = urllib.request.Request(archive_url, headers=headers)
 
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
@@ -99,7 +107,7 @@ def _download_github_archive(owner: str, repo: str, branch: str, destination: Pa
                 shutil.copyfileobj(response, archive_file)
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
-            raise BasicScannerError("Repository or branch was not found, or it is not public") from exc
+            raise BasicScannerError("Repository or branch was not found, or your GitHub account does not have access") from exc
         if exc.code == 403:
             raise BasicScannerError("GitHub API rate limit reached. Try again later.") from exc
         raise BasicScannerError(f"GitHub archive request failed with status {exc.code}") from exc
@@ -529,17 +537,22 @@ def _build_manager_report(
     }
 
 
-def run_basic_scan(repository_url: str, branch: str = "main") -> dict[str, Any]:
+def run_basic_scan(
+    repository_url: str,
+    branch: str = "main",
+    access_token: str | None = None,
+) -> dict[str, Any]:
+    """Scan a GitHub repository using optional authenticated GitHub access."""
     repository = parse_github_repository(repository_url)
     if not repository:
-        raise GitHubError("Enter a valid public GitHub repository URL like https://github.com/owner/repo")
+        raise GitHubError("Enter a valid GitHub repository URL like https://github.com/owner/repo")
 
     scan_id = str(uuid4())
     started = time.time()
     temp_dir = Path(tempfile.mkdtemp(prefix="basic-scan-"))
 
     try:
-        _download_github_archive(repository.owner, repository.repo, branch, temp_dir)
+        _download_github_archive(repository.owner, repository.repo, branch, temp_dir, access_token)
         dependency_summary = _load_package_dependencies(temp_dir)
         declared_dependencies = set(dependency_summary["dependencies"]) | set(dependency_summary["dev_dependencies"])
         supported_files = sorted(

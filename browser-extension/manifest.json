@@ -4,6 +4,7 @@
   "description": "Analyze the active GitHub repository with Code Analytics Platform.",
   "version": "0.1.0",
   "permissions": [
+    "identity",
     "storage",
     "tabs"
   ],
