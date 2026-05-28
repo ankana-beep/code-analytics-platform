@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,7 +14,13 @@
           <h1 id="reportTitle">Code Analytics</h1>
           <p id="reportSubtitle">Loading scan metrics...</p>
         </div>
-        <a id="githubLink" class="link-button" href="#" target="_blank" rel="noreferrer" hidden>Open Repository</a>
+        <div class="report-actions">
+          <div class="theme-toggle" aria-label="Report theme">
+            <button type="button" data-theme-option="dark" class="active" aria-pressed="true">Dark</button>
+            <button type="button" data-theme-option="light" aria-pressed="false">Light</button>
+          </div>
+          <a id="githubLink" class="link-button" href="#" target="_blank" rel="noreferrer" hidden>Open Repository</a>
+        </div>
       </header>
 
       <section id="messagePanel" class="message-panel" hidden>
@@ -159,6 +165,28 @@
         </article>
       </section>
 
+      <section class="details-grid operations-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Dependencies</p>
+              <h2>Package Health</h2>
+            </div>
+          </div>
+          <div id="dependencyList" class="dependency-dashboard"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Repository Metrics</p>
+              <h2>Engineering Snapshot</h2>
+            </div>
+          </div>
+          <div id="metricsGrid" class="metrics-grid metrics-grid-highlight"></div>
+        </article>
+      </section>
+
       <section class="panel technology-panel">
         <div class="panel-header">
           <div>
@@ -289,27 +317,6 @@
         </div>
       </section>
 
-      <section class="details-grid">
-        <article class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Dependencies</p>
-              <h2>Package Summary</h2>
-            </div>
-          </div>
-          <dl id="dependencyList" class="definition-grid"></dl>
-        </article>
-
-        <article class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Raw Metrics</p>
-              <h2>Technical Reference</h2>
-            </div>
-          </div>
-          <div id="metricsGrid" class="metrics-grid"></div>
-        </article>
-      </section>
     </main>
 
     <script src="report.js"></script>

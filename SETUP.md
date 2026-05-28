@@ -5,7 +5,6 @@ The project has been simplified to an API process plus a browser extension.
 ## What Runs
 
 - `api`
-- `mongodb`
 - `redis`
 
 There is no separate frontend service, worker, Redis queue, or monitoring stack in the default setup.
@@ -16,6 +15,8 @@ There is no separate frontend service, worker, Redis queue, or monitoring stack 
 cp .env.example .env
 docker compose up --build
 ```
+
+Set `MONGODB_URI` in `.env` to your MongoDB Atlas connection string before starting.
 
 ## Start Locally
 

@@ -7,11 +7,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
-
-from app.core.cache import cache_manager
-from app.core.config import settings
-
 
 GITHUB_OWNER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$")
 GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -126,29 +123,50 @@ def list_repository_branches(owner: str, repo: str, access_token: str | None = N
     ]
 
 
-async def list_public_repositories_cached(username: str) -> List[Dict[str, Any]]:
-    """Return public repositories, using Redis cache when enabled."""
-    cache_key = f"github:user-repos:{username.lower()}"
-    if settings.cache_enabled:
-        cached = await cache_manager.get_json(cache_key)
-        if cached is not None:
-            return cached
+def list_repository_work_in_progress(owner: str, repo: str, weeks: int = 8) -> List[Dict[str, Any]]:
+    """Return open pull requests grouped by the week they were created."""
+    if not is_valid_owner(owner) or not is_valid_repo(repo):
+        raise GitHubError("Enter a valid GitHub repository")
 
-    repositories = list_public_repositories(username)
-    if settings.cache_enabled:
-        await cache_manager.set_json(cache_key, repositories)
-    return repositories
+    week_count = min(max(weeks, 1), 12)
+    now = datetime.now(timezone.utc)
+    current_week_start = now - timedelta(days=now.weekday())
+    current_week_start = current_week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    range_start = current_week_start - timedelta(weeks=week_count - 1)
+
+    buckets: Dict[str, Dict[str, Any]] = {}
+    for offset in range(week_count):
+        week_start = range_start + timedelta(weeks=offset)
+        iso_year, iso_week, _ = week_start.isocalendar()
+        key = week_start.date().isoformat()
+        buckets[key] = {
+            "week": f"Week {iso_week} {iso_year}",
+            "week_start": key,
+            "open_pull_requests": 0,
+        }
+
+    encoded_owner = urllib.parse.quote(owner, safe="")
+    encoded_repo = urllib.parse.quote(repo, safe="")
+    pulls: List[Dict[str, Any]] = []
+    for page in range(1, 6):
+        page_pulls = github_api_get(
+            f"/repos/{encoded_owner}/{encoded_repo}/pulls?state=open&sort=created&direction=asc&per_page=100&page={page}"
+        )
+        pulls.extend(page_pulls)
+        if len(page_pulls) < 100:
+            break
+
+    for pull in pulls:
+        created_at = pull.get("created_at")
+        if not created_at:
+            continue
+        created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        week_start = created - timedelta(days=created.weekday())
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        key = week_start.date().isoformat()
+        if key in buckets:
+            buckets[key]["open_pull_requests"] += 1
+
+    return list(buckets.values())
 
 
-async def list_public_branches_cached(owner: str, repo: str) -> List[Dict[str, str]]:
-    """Return public branches, using Redis cache when enabled."""
-    cache_key = f"github:repo-branches:{owner.lower()}:{repo.lower()}"
-    if settings.cache_enabled:
-        cached = await cache_manager.get_json(cache_key)
-        if cached is not None:
-            return cached
-
-    branches = list_public_branches(owner, repo)
-    if settings.cache_enabled:
-        await cache_manager.set_json(cache_key, branches)
-    return branches
