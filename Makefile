@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs clean test
+.PHONY: help build up down restart logs clean test local
 
 help:
 	@echo "Code Analytics Platform - Make Commands"
@@ -9,6 +9,7 @@ help:
 	@echo "restart        - Restart all services"
 	@echo "logs           - View logs from all services"
 	@echo "logs-api       - View API logs"
+	@echo "local          - Run the API locally with uvicorn reload"
 	@echo "clean          - Remove containers and volumes"
 	@echo "shell-api      - Open shell in API container"
 	@echo "db-shell       - Open MongoDB shell"
@@ -33,6 +34,9 @@ logs:
 
 logs-api:
 	docker-compose logs -f api
+
+local:
+	uvicorn app.main:app --reload --host 0.0.0.0
 
 clean:
 	docker-compose down -v
