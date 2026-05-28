@@ -1,12 +1,39 @@
 :root {
+  color-scheme: dark;
+  --bg: #0d1422;
+  --bg-top: #152238;
+  --panel: #151f31;
+  --panel-solid: #101827;
+  --panel-subtle: #1b2940;
+  --text: #edf4ff;
+  --muted: #9fb0c7;
+  --line: #2d3c52;
+  --accent: #67a8ff;
+  --accent-strong: #9bc6ff;
+  --accent-soft: #19345b;
+  --good: #5bd39b;
+  --good-soft: #153c31;
+  --warning: #f0b45c;
+  --warning-soft: #473111;
+  --error: #ff867d;
+  --error-soft: #4b201f;
+  --info-soft: #172f52;
+  --meter-bg: #263449;
+  --shadow: 0 18px 44px rgba(0, 0, 0, 0.36);
+}
+
+:root[data-theme="light"] {
   color-scheme: light;
   --bg: #f3f6fa;
+  --bg-top: #e9eef6;
   --panel: #ffffff;
+  --panel-solid: #ffffff;
   --panel-subtle: #f8fafc;
   --text: #142033;
   --muted: #64748b;
   --line: #d8e0ea;
   --accent: #1d5fbf;
+  --accent-strong: #144f9f;
   --accent-soft: #eaf2ff;
   --good: #13795b;
   --good-soft: #e8f7f1;
@@ -15,6 +42,7 @@
   --error: #b42318;
   --error-soft: #fff1ef;
   --info-soft: #eef6ff;
+  --meter-bg: #e2e8f0;
   --shadow: 0 18px 40px rgba(20, 32, 51, 0.08);
 }
 
@@ -25,7 +53,7 @@
 body {
   margin: 0;
   background:
-    linear-gradient(180deg, #e9eef6 0, #f3f6fa 280px),
+    linear-gradient(180deg, var(--bg-top) 0, var(--bg) 280px),
     var(--bg);
   color: var(--text);
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -67,6 +95,13 @@ h2 {
   margin-bottom: 18px;
 }
 
+.report-actions {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .report-header p:not(.eyebrow) {
   max-width: 760px;
   margin-top: 8px;
@@ -97,13 +132,39 @@ h2 {
 
 .link-button {
   border: 1px solid #b8c7dc;
-  background: #ffffff;
+  background: var(--panel-solid);
   padding: 0 14px;
 }
 
 .link-button:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.theme-toggle {
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: inline-flex;
+  padding: 3px;
+}
+
+.theme-toggle button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  padding: 0 12px;
+}
+
+.theme-toggle button.active {
+  background: var(--accent);
+  color: #ffffff;
 }
 
 .message-panel,
@@ -177,8 +238,8 @@ h2 {
   place-items: center;
   border-radius: 50%;
   background:
-    radial-gradient(circle at center, #ffffff 0 58%, transparent 59%),
-    conic-gradient(var(--accent) var(--score-percent, 0%), #e4eaf2 0);
+    radial-gradient(circle at center, var(--panel-solid) 0 58%, transparent 59%),
+    conic-gradient(var(--accent) var(--score-percent, 0%), var(--meter-bg) 0);
 }
 
 .gauge span,
@@ -312,7 +373,7 @@ h2 {
   height: 9px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e2e8f0;
+  background: var(--meter-bg);
 }
 
 .risk-meter {
@@ -359,7 +420,7 @@ h2 {
   gap: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--panel-solid);
   padding: 14px;
 }
 
@@ -391,7 +452,7 @@ h2 {
   height: 12px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e5ebf3;
+  background: var(--meter-bg);
 }
 
 .severity-segment {
@@ -421,7 +482,7 @@ h2 {
   align-items: center;
   gap: 12px;
   min-height: 52px;
-  background: #ffffff;
+  background: var(--panel-solid);
   padding: 10px 12px;
 }
 
@@ -459,8 +520,8 @@ h2 {
 .readiness-gauge {
   width: 160px;
   background:
-    radial-gradient(circle at center, #ffffff 0 58%, transparent 59%),
-    conic-gradient(var(--good) var(--score-percent, 0%), #e4eaf2 0);
+    radial-gradient(circle at center, var(--panel-solid) 0 58%, transparent 59%),
+    conic-gradient(var(--good) var(--score-percent, 0%), var(--meter-bg) 0);
 }
 
 .readiness-gauge span {
@@ -473,7 +534,7 @@ h2 {
 .debt-total {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--panel-solid);
   padding: 12px;
 }
 
@@ -504,8 +565,7 @@ h2 {
 
 .technology-panel {
   overflow: hidden;
-  background:
-    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-subtle) 100%);
 }
 
 .technology-grid {
@@ -530,7 +590,7 @@ h2 {
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--panel-solid);
   padding: 14px;
 }
 
@@ -561,9 +621,9 @@ h2 {
   height: 16px;
   overflow: hidden;
   margin-top: 14px;
-  border: 1px solid #d0d9e6;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: #e6edf6;
+  background: var(--meter-bg);
 }
 
 .technology-segments .segment {
@@ -608,7 +668,7 @@ h2 {
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--panel-solid);
   padding: 12px;
 }
 
@@ -644,7 +704,7 @@ h2 {
   height: 12px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e2e8f0;
+  background: var(--meter-bg);
 }
 
 .technology-bar span {
@@ -663,7 +723,7 @@ h2 {
 .technology-insights {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--panel-solid);
   padding: 14px;
 }
 
@@ -685,7 +745,7 @@ h2 {
 }
 
 .insight-item {
-  border: 1px solid #e4ebf3;
+  border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel-subtle);
   padding: 12px;
@@ -737,7 +797,7 @@ h2 {
 }
 
 .ai-summary-panel {
-  background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-subtle) 100%);
 }
 
 .summary-badge {
@@ -914,7 +974,7 @@ h2 {
 .dependency-status {
   grid-column: 1 / -1;
   border-left: 4px solid var(--good);
-  background: #ffffff;
+  background: var(--panel-solid);
 }
 
 .dependency-status.warning {
@@ -930,7 +990,7 @@ h2 {
 }
 
 .metrics-grid-highlight .metric-tile {
-  background: #ffffff;
+  background: var(--panel-solid);
 }
 
 .metrics-grid-highlight .metric-tile.secondary {
@@ -1040,7 +1100,7 @@ td {
 
 .pagination-button {
   border: 1px solid var(--line);
-  background: #ffffff;
+  background: var(--panel-solid);
   color: var(--text);
   padding: 0 12px;
   font-size: 13px;
@@ -1109,6 +1169,19 @@ td {
   .severity-dashboard {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .report-actions {
+    align-items: stretch;
+  }
+
+  .theme-toggle,
+  .link-button {
+    width: 100%;
+  }
+
+  .theme-toggle button {
+    flex: 1;
   }
 
   .hero-card {

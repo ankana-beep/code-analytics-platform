@@ -5,12 +5,14 @@ const DEFAULT_SETTINGS = {
 const LARGEST_FILES_PAGE_SIZE = 10;
 const FOLDER_STATS_PAGE_SIZE = 10;
 const ISSUES_PAGE_SIZE = 10;
+const REPORT_THEME_STORAGE_KEY = 'reportTheme';
 const params = new URLSearchParams(window.location.search);
 
 const elements = {
   reportTitle: document.getElementById('reportTitle'),
   reportSubtitle: document.getElementById('reportSubtitle'),
   githubLink: document.getElementById('githubLink'),
+  themeButtons: Array.from(document.querySelectorAll('[data-theme-option]')),
   messagePanel: document.getElementById('messagePanel'),
   messageTitle: document.getElementById('messageTitle'),
   messageText: document.getElementById('messageText'),
@@ -71,6 +73,38 @@ const paginatedSections = {
   folderStats: { items: [], page: 1 },
   issues: { items: [], page: 1 }
 };
+
+function applyReportTheme(theme) {
+  const nextTheme = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = nextTheme;
+  elements.themeButtons.forEach((button) => {
+    const isActive = button.dataset.themeOption === nextTheme;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  });
+}
+
+function initializeReportTheme() {
+  let storedTheme = 'dark';
+  try {
+    storedTheme = localStorage.getItem(REPORT_THEME_STORAGE_KEY) || 'dark';
+  } catch {
+    storedTheme = 'dark';
+  }
+  applyReportTheme(storedTheme);
+
+  elements.themeButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const nextTheme = button.dataset.themeOption === 'light' ? 'light' : 'dark';
+      applyReportTheme(nextTheme);
+      try {
+        localStorage.setItem(REPORT_THEME_STORAGE_KEY, nextTheme);
+      } catch {
+        // Theme persistence is optional; the visual toggle should still work.
+      }
+    });
+  });
+}
 
 function normalizeBaseUrl(value) {
   return String(value || '').trim().replace(/\/+$/, '');
@@ -990,5 +1024,6 @@ elements.issuesPrevButton.addEventListener('click', () => {
 elements.issuesNextButton.addEventListener('click', () => {
   bindPagination('issues', 1, renderIssuePage);
 });
+initializeReportTheme();
 renderAISummaryIdle();
 initializeReport();
