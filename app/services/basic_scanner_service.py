@@ -25,7 +25,25 @@ from app.services.github_service import GitHubError, parse_github_repository
 
 
 IGNORED_FOLDERS = {"node_modules", ".git", "dist", "build", "coverage", "vendor"}
-SOURCE_EXTENSIONS = {".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".html", ".css", ".scss", ".json"}
+SOURCE_EXTENSIONS = {
+    ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
+    ".py", ".pyi",
+    ".java", ".kt", ".kts", ".groovy", ".scala",
+    ".go", ".rs",
+    ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx",
+    ".cs", ".fs", ".fsi", ".fsx",
+    ".swift", ".m", ".mm",
+    ".rb", ".php", ".pl", ".pm",
+    ".sh", ".bash", ".zsh", ".ps1", ".bat",
+    ".sql", ".r", ".dart", ".lua",
+    ".ex", ".exs", ".erl", ".hrl",
+    ".clj", ".cljs", ".cljc", ".edn",
+    ".hs", ".elm", ".ml", ".mli", ".nim", ".zig", ".sol",
+    ".vue", ".svelte", ".astro",
+    ".html", ".css", ".scss", ".sass", ".less",
+    ".json", ".json5", ".jsonc", ".xml", ".toml", ".ini", ".cfg", ".conf", ".properties",
+    ".md", ".txt",
+}
 TEST_PATTERNS = (
     ".test.",
     ".spec.",
@@ -62,15 +80,42 @@ DEVOPS_FILES = {
 }
 DOC_FILES = {"README.md", "LICENSE", "CONTRIBUTING.md", "CHANGELOG.md"}
 YAML_EXTENSIONS = {".yml", ".yaml"}
-COMMENT_PREFIXES = ("//", "#", "/*", "*", "*/", "<!--", "-->")
+SLASH_COMMENT_EXTENSIONS = {
+    ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
+    ".java", ".kt", ".kts", ".groovy", ".scala",
+    ".go", ".rs",
+    ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx",
+    ".cs", ".swift", ".m", ".mm",
+    ".php", ".dart", ".sol",
+    ".css", ".scss", ".sass", ".less",
+    ".jsonc", ".vue", ".svelte", ".astro",
+}
+HASH_COMMENT_EXTENSIONS = {
+    ".py", ".pyi", ".yml", ".yaml", ".toml",
+    ".sh", ".bash", ".zsh", ".rb", ".pl", ".pm",
+    ".r", ".conf", ".cfg", ".properties",
+}
+DASH_COMMENT_EXTENSIONS = {".sql", ".lua", ".hs", ".elm"}
+SEMICOLON_COMMENT_EXTENSIONS = {".ini"}
+HTML_COMMENT_EXTENSIONS = {".html", ".xml", ".md", ".vue", ".svelte", ".astro"}
+INDENTATION_FUNCTION_EXTENSIONS = {".py", ".pyi"}
+BRACE_FUNCTION_EXTENSIONS = {
+    ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
+    ".java", ".kt", ".kts", ".groovy", ".scala",
+    ".go", ".rs",
+    ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx",
+    ".cs", ".swift", ".m", ".mm",
+    ".php", ".dart", ".sol",
+}
+COMMENT_PREFIXES = ("//", "#", "/*", "*", "*/", "<!--", "-->", "--", ";")
 CODE_IN_COMMENT_RE = re.compile(
-    r"\b(function|const|let|var|if|for|while|return|class|def|import|from|public|private|console\.log)\b|[;{}=()]"
+    r"\b(function|const|let|var|if|for|while|return|class|def|import|from|public|private|func|fn|console\.log)\b|[;{}=()]"
 )
 IMPORT_RE = re.compile(
     r"(?:from\s+['\"]([^'\"]+)['\"]|import\s+(?:.+?\s+from\s+)?['\"]([^'\"]+)['\"]|require\(['\"]([^'\"]+)['\"]\))"
 )
 FUNCTION_RE = re.compile(
-    r"^\s*(?:export\s+)?(?:async\s+)?(?:function\s+\w+|\w+\s*[:=]\s*(?:async\s*)?\([^)]*\)\s*=>|def\s+\w+|(?:public|private|protected)?\s*(?:static\s+)?[\w<>\[\]]+\s+\w+\s*\([^)]*\))"
+    r"^\s*(?:pub\s+)?(?:export\s+)?(?:async\s+)?(?:fn\s+\w+|func\s+(?:\([^)]*\)\s*)?\w+|function\s+\w+|\w+\s*[:=]\s*(?:async\s*)?\([^)]*\)\s*=>|def\s+\w+|(?:public|private|protected|internal)?\s*(?:static\s+)?[\w<>\[\],:*&]+\s+\w+\s*\([^)]*\))"
 )
 
 
@@ -146,12 +191,16 @@ def _line_kind(line: str, suffix: str) -> str:
     stripped = line.strip()
     if not stripped:
         return "blank"
-    if suffix in {".html", ".md"} and (stripped.startswith("<!--") or stripped.endswith("-->")):
+    if suffix in HTML_COMMENT_EXTENSIONS and (stripped.startswith("<!--") or stripped.endswith("-->")):
         return "comment"
-    if suffix in {".css", ".scss", ".js", ".jsx", ".ts", ".tsx", ".java"}:
+    if suffix in SLASH_COMMENT_EXTENSIONS:
         if stripped.startswith(("//", "/*", "*", "*/")):
             return "comment"
-    if suffix in {".py", ".yml", ".yaml", ".toml"} and stripped.startswith("#"):
+    if suffix in HASH_COMMENT_EXTENSIONS and stripped.startswith("#"):
+        return "comment"
+    if suffix in DASH_COMMENT_EXTENSIONS and stripped.startswith("--"):
+        return "comment"
+    if suffix in SEMICOLON_COMMENT_EXTENSIONS and stripped.startswith(";"):
         return "comment"
     return "code"
 
@@ -169,7 +218,7 @@ def _detect_long_functions(lines: list[str], suffix: str, threshold: int = 50) -
         if not FUNCTION_RE.match(line):
             continue
 
-        if suffix == ".py":
+        if suffix in INDENTATION_FUNCTION_EXTENSIONS:
             base_indent = len(line) - len(line.lstrip())
             end = index + 1
             for cursor in range(index + 1, len(lines)):
@@ -179,7 +228,7 @@ def _detect_long_functions(lines: list[str], suffix: str, threshold: int = 50) -
                     break
                 end = cursor + 1
             length = end - index
-        else:
+        elif suffix in BRACE_FUNCTION_EXTENSIONS:
             brace_balance = line.count("{") - line.count("}")
             end = index + 1
             for cursor in range(index + 1, len(lines)):
@@ -188,6 +237,8 @@ def _detect_long_functions(lines: list[str], suffix: str, threshold: int = 50) -
                 if brace_balance <= 0 and "{" in line:
                     break
             length = end - index
+        else:
+            continue
 
         if length > threshold:
             issues.append({"line": index + 1, "length": length})
