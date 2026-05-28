@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
+    docs_enabled: bool = False
     
     # Server
     host: str = "0.0.0.0"
@@ -76,6 +77,14 @@ class Settings(BaseSettings):
     auth_token_cookie_name: str = "cap_access_token"
     auth_cookie_secure: bool = True
     auth_cookie_samesite: str = "lax"
+    docs_username: str | None = Field(
+        default=None,
+        description="Username required to access Swagger UI and ReDoc",
+    )
+    docs_password: str | None = Field(
+        default=None,
+        description="Password required to access Swagger UI and ReDoc",
+    )
 
     # GitHub OAuth
     github_client_id: str | None = Field(
