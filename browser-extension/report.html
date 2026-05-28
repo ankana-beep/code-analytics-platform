@@ -8,25 +8,65 @@
   </head>
   <body>
     <main class="report-shell">
-      <header class="report-header">
-        <div>
-          <p class="eyebrow">Executive Code Health Report</p>
-          <h1 id="reportTitle">Code Analytics</h1>
-          <p id="reportSubtitle">Loading scan metrics...</p>
-        </div>
-        <div class="report-actions">
-          <div class="theme-toggle" aria-label="Report theme">
-            <button type="button" data-theme-option="dark" class="active" aria-pressed="true">Dark</button>
-            <button type="button" data-theme-option="light" aria-pressed="false">Light</button>
+      <section class="landing-hero" aria-label="Code analytics introduction">
+        <div class="star-field" aria-hidden="true"></div>
+        <nav class="hero-nav" aria-label="Report navigation">
+          <a id="heroBrand" class="brand-mark" href="#hero">Code Analytics</a>
+          <div class="hero-links">
+            <a href="#hero" class="active">Overview</a>
+            <a href="#analytics">Report</a>
+            <a href="#aiSummaryButton">AI Summary</a>
+            <a href="#issuesBody">Findings</a>
           </div>
-          <a id="githubLink" class="link-button" href="#" target="_blank" rel="noreferrer" hidden>Open Repository</a>
-        </div>
-      </header>
+          <div class="hero-actions">
+            <div class="theme-toggle" aria-label="Report theme">
+              <button type="button" data-theme-option="dark" class="active" aria-pressed="true">Dark</button>
+              <button type="button" data-theme-option="light" aria-pressed="false">Light</button>
+            </div>
+            <a id="githubLink" class="hero-pill" href="#" target="_blank" rel="noreferrer" hidden>Open Repository</a>
+            <a id="heroTopCta" class="hero-pill primary" href="#analytics">View Report</a>
+          </div>
+        </nav>
 
-      <section id="messagePanel" class="message-panel" hidden>
-        <strong id="messageTitle"></strong>
-        <p id="messageText"></p>
+        <div id="hero" class="hero-stage">
+          <div class="orb-wrap" aria-hidden="true">
+            <span class="orb-line left"></span>
+            <div class="glass-orb">
+              <span class="orb-shine"></span>
+              <span class="orb-arc arc-one"></span>
+              <span class="orb-arc arc-two"></span>
+            </div>
+            <span class="orb-line right"></span>
+          </div>
+
+          <div class="hero-copy-block">
+            <h1>
+              <span id="heroTitlePrefix">Code health</span>
+              <strong id="heroTitleMain">report</strong>
+              <span id="heroTitleSuffix">ready</span>
+            </h1>
+            <p id="heroSubtitle">Loading repository scan details from the browser extension.</p>
+            <div class="hero-cta-row">
+              <a id="heroPrimaryCta" class="hero-cta primary" href="#analytics">View analytics</a>
+              <a id="heroSecondaryCta" class="hero-cta" href="#aiSummaryButton">Open AI summary</a>
+            </div>
+          </div>
+        </div>
       </section>
+
+      <section id="analytics" class="analytics-section" aria-label="Repository analytics report">
+        <header class="report-header">
+          <div>
+            <p class="eyebrow">Executive Code Health Report</p>
+            <h2 id="reportTitle">Code Analytics</h2>
+            <p id="reportSubtitle">Loading scan metrics...</p>
+          </div>
+        </header>
+
+        <section id="messagePanel" class="message-panel" hidden>
+          <strong id="messageTitle"></strong>
+          <p id="messageText"></p>
+        </section>
 
       <section class="hero-dashboard">
         <article class="hero-card">
@@ -315,6 +355,7 @@
           <span id="issuesPageInfo" class="pagination-info"></span>
           <button id="issuesNextButton" class="pagination-button" type="button">Next</button>
         </div>
+      </section>
       </section>
 
     </main>

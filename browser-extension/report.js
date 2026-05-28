@@ -1,5 +1,6 @@
 const DEFAULT_SETTINGS = {
-  apiBaseUrl: 'https://code-analytics-api.onrender.com/api/v1'
+  // apiBaseUrl: 'https://code-analytics-api.onrender.com/api/v1'
+  apiBaseUrl: 'http://localhost:8000/api/v1'
 };
 
 const LARGEST_FILES_PAGE_SIZE = 10;
@@ -9,6 +10,14 @@ const REPORT_THEME_STORAGE_KEY = 'reportTheme';
 const params = new URLSearchParams(window.location.search);
 
 const elements = {
+  heroBrand: document.getElementById('heroBrand'),
+  heroTitlePrefix: document.getElementById('heroTitlePrefix'),
+  heroTitleMain: document.getElementById('heroTitleMain'),
+  heroTitleSuffix: document.getElementById('heroTitleSuffix'),
+  heroSubtitle: document.getElementById('heroSubtitle'),
+  heroTopCta: document.getElementById('heroTopCta'),
+  heroPrimaryCta: document.getElementById('heroPrimaryCta'),
+  heroSecondaryCta: document.getElementById('heroSecondaryCta'),
   reportTitle: document.getElementById('reportTitle'),
   reportSubtitle: document.getElementById('reportSubtitle'),
   githubLink: document.getElementById('githubLink'),
@@ -260,6 +269,7 @@ function renderSummary(scan) {
   const healthScore = clampPercent(scan.health_score);
   const readinessPercentage = Number.isFinite(Number(readiness.percentage)) ? `${readiness.percentage}%` : 'Release readiness pending';
 
+  renderHeroSummary(scan, repoName, branch);
   elements.reportTitle.textContent = repoName;
   elements.reportSubtitle.textContent = branch ? `Branch: ${branch}` : 'Executive scan from the browser extension.';
   elements.healthGauge.style.setProperty('--score-percent', `${healthScore}%`);
@@ -272,6 +282,36 @@ function renderSummary(scan) {
   elements.totalLoc.textContent = `${formatNumber(metrics.code_lines || metrics.total_lines_of_code)} LOC`;
   elements.executiveHeadline.textContent = buildExecutiveHeadline(scan);
   elements.executiveNarrative.textContent = buildExecutiveNarrative(scan);
+}
+
+function renderHeroSummary(scan, repoName, branch) {
+  const metrics = scan.metrics || {};
+  const issues = Array.isArray(scan.issues) ? scan.issues : [];
+  const score = Number(scan.health_score);
+  const status = scan.health_status || 'Not scored';
+  const branchLabel = branch ? `${branch} branch` : 'selected branch';
+  const fileCount = formatNumber(metrics.total_files);
+  const issueCount = formatNumber(issues.length);
+
+  elements.heroBrand.textContent = repoName;
+  elements.heroTitlePrefix.textContent = Number.isFinite(score) ? `${scan.health_score}%` : 'Live';
+  elements.heroTitleMain.textContent = 'CODE HEALTH';
+  elements.heroTitleSuffix.textContent = status;
+  elements.heroSubtitle.textContent = `Browser extension report for ${branchLabel}: ${fileCount} files reviewed with ${issueCount} quality signals.`;
+  elements.heroTopCta.textContent = 'View Report';
+  elements.heroPrimaryCta.textContent = 'View analytics';
+  elements.heroSecondaryCta.textContent = 'Open AI summary';
+}
+
+function renderHeroMessage(prefix, main, suffix, subtitle) {
+  elements.heroBrand.textContent = 'Code Analytics';
+  elements.heroTitlePrefix.textContent = prefix;
+  elements.heroTitleMain.textContent = main;
+  elements.heroTitleSuffix.textContent = suffix;
+  elements.heroSubtitle.textContent = subtitle;
+  elements.heroTopCta.textContent = 'View Report';
+  elements.heroPrimaryCta.textContent = 'View analytics';
+  elements.heroSecondaryCta.textContent = 'Open AI summary';
 }
 
 function buildExecutiveHeadline(scan) {
@@ -921,7 +961,7 @@ function renderAISummary(summaryResponse) {
   renderSummaryList(elements.aiStrengthsList, summary.key_strengths || [], 'No strengths highlighted.');
   renderSummaryList(elements.aiConcernsList, summary.priority_concerns || [], 'No concerns highlighted.');
   renderSummaryList(elements.aiQuickWinsList, summary.quick_wins || [], 'No quick wins highlighted.');
-  elements.aiConfidenceNote.textContent = summary.confidence_note || 'This summary is based on static scan signals.';
+  elements.aiConfidenceNote.textContent = summary.confidence_note || 'This summary is based on the saved repository scan signals.';
   setAISummaryButtonState(false);
 }
 
@@ -988,6 +1028,12 @@ async function initializeReport() {
 
   if (!scanId) {
     showMessage('No scan selected', 'Open this report from the extension after analyzing a repository.');
+    renderHeroMessage(
+      'No scan',
+      'CODE HEALTH',
+      'selected',
+      'Open this page from the Code Analytics browser extension after running a repository scan.'
+    );
     elements.reportSubtitle.textContent = 'No scan id was provided.';
     return;
   }
@@ -1000,6 +1046,12 @@ async function initializeReport() {
     renderAISummaryIdle();
   } catch (error) {
     showMessage('Unable to load report', error.message);
+    renderHeroMessage(
+      'Report',
+      'LOAD',
+      'blocked',
+      'The browser extension could not load this repository scan from the configured API.'
+    );
     elements.reportSubtitle.textContent = 'The extension report could not load scan metrics.';
     renderAISummaryError('Load the scan report first, then the AI summary can be requested.');
   }

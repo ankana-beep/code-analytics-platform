@@ -1,5 +1,6 @@
 const DEFAULT_SETTINGS = {
-  apiBaseUrl: 'https://code-analytics-api.onrender.com/api/v1'
+  // apiBaseUrl: 'https://code-analytics-api.onrender.com/api/v1'
+  apiBaseUrl: 'http://localhost:8000/api/v1'
 };
 
 const form = document.getElementById('settingsForm');
