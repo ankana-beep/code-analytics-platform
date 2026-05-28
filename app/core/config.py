@@ -4,6 +4,7 @@ Uses pydantic-settings for environment-based configuration.
 """
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -21,7 +22,6 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
-    docs_enabled: bool = False
     
     # Server
     host: str = "0.0.0.0"
@@ -100,6 +100,17 @@ class Settings(BaseSettings):
         description="Backend callback URL registered with the GitHub OAuth app",
     )
     github_oauth_timeout_seconds: float = 10.0
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def normalize_bool_flags(cls, value):
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"release", "production", "prod", "0", "false", "no", "off"}:
+                return False
+            if normalized in {"development", "dev", "debug", "1", "true", "yes", "on"}:
+                return True
+        return value
 
 
 # Global settings instance
