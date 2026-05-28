@@ -18,9 +18,13 @@ class MongoDBManager:
     
     async def connect(self):
         """Establish connection to MongoDB with connection pooling."""
+        if not settings.mongodb_uri:
+            logger.info("MongoDB URI not configured; skipping database connection")
+            return
+
         try:
             self.client = AsyncIOMotorClient(
-                settings.mongodb_url,
+                settings.mongodb_uri,
                 maxPoolSize=settings.mongodb_max_pool_size,
                 minPoolSize=settings.mongodb_min_pool_size,
                 serverSelectionTimeoutMS=5000,
@@ -38,7 +42,7 @@ class MongoDBManager:
                 "MongoDB connected",
                 extra={
                     "database": settings.mongodb_database,
-                    "url": settings.mongodb_url.split("@")[-1]  # Hide credentials
+                    "uri": settings.mongodb_uri.split("@")[-1]  # Hide credentials
                 }
             )
         except Exception as e:
@@ -52,6 +56,9 @@ class MongoDBManager:
         await self.database.basic_scans.create_index("branch")
         await self.database.basic_scans.create_index("status")
         await self.database.basic_scans.create_index("created_at")
+        await self.database.users.create_index("github_id", unique=True)
+        await self.database.users.create_index("login")
+        await self.database.users.create_index("last_login_at")
         
         logger.info("Database indexes created successfully")
     

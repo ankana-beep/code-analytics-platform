@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Code Analytics Bridge",
+  "description": "Analyze the active GitHub repository with Code Analytics Platform.",
+  "version": "0.1.0",
+  "permissions": [
+    "identity",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://github.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "https://*/*"
+  ],
+  "action": {
+    "default_title": "Code Analytics",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}

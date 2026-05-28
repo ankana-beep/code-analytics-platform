@@ -2,9 +2,13 @@
 Main FastAPI application.
 Configures middleware, CORS, routes, and application lifecycle.
 """
+import secrets
 import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -12,8 +16,11 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.logging import logger
 from app.core.database import mongodb_manager
-from app.core.metrics import metrics
-from app.api.v1 import basic_scans, github, health
+from app.core.cache import cache_manager
+from app.api.v1 import auth, basic_scans, github, health
+
+
+docs_security = HTTPBasic()
 
 
 @asynccontextmanager
@@ -36,6 +43,8 @@ async def lifespan(app: FastAPI):
                 "Starting in foundation mode without MongoDB",
                 extra={"error": str(exc)}
             )
+
+        await cache_manager.connect()
         
         yield
     
@@ -43,6 +52,7 @@ async def lifespan(app: FastAPI):
         # Shutdown
         logger.info("Shutting down Code Analytics Platform")
         
+        await cache_manager.disconnect()
         await mongodb_manager.disconnect()
         
         logger.info("Database disconnected")
@@ -54,9 +64,32 @@ app = FastAPI(
     version=settings.app_version,
     description="Production-grade distributed code analytics platform",
     lifespan=lifespan,
-    docs_url="/docs" if settings.debug else None,
-    redoc_url="/redoc" if settings.debug else None
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
+
+
+def _docs_are_enabled() -> bool:
+    return settings.docs_enabled or settings.debug
+
+
+def require_docs_auth(credentials: HTTPBasicCredentials = Depends(docs_security)) -> str:
+    """Require HTTP Basic auth for documentation endpoints."""
+    expected_username = settings.docs_username or ""
+    expected_password = settings.docs_password or ""
+
+    username_matches = secrets.compare_digest(credentials.username, expected_username)
+    password_matches = secrets.compare_digest(credentials.password, expected_password)
+
+    if not (expected_username and expected_password and username_matches and password_matches):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid documentation credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+    return credentials.username
 
 
 # CORS Middleware
@@ -73,14 +106,13 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
-# Request Logging and Metrics Middleware
+# Request Logging Middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     """
-    Log all HTTP requests and record metrics.
-    
-    Captures request details, response time, and status codes
-    for observability and performance monitoring.
+    Log all HTTP requests.
+
+    Captures request details, response time, and status codes.
     """
     start_time = time.time()
     
@@ -100,14 +132,6 @@ async def log_requests(request: Request, call_next):
         
         # Calculate duration
         duration = time.time() - start_time
-        
-        # Record metrics
-        metrics.record_request(
-            method=request.method,
-            endpoint=request.url.path,
-            status=response.status_code,
-            duration=duration
-        )
         
         # Log response
         logger.info(
@@ -137,14 +161,6 @@ async def log_requests(request: Request, call_next):
                 "duration": duration
             },
             exc_info=True
-        )
-        
-        # Record error metrics
-        metrics.record_request(
-            method=request.method,
-            endpoint=request.url.path,
-            status=500,
-            duration=duration
         )
         
         raise
@@ -179,6 +195,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include routers
 app.include_router(health.router, prefix=settings.api_v1_prefix)
+app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(basic_scans.router, prefix=settings.api_v1_prefix)
 app.include_router(github.router, prefix=settings.api_v1_prefix)
 
@@ -191,8 +208,40 @@ async def root():
         "name": settings.app_name,
         "version": settings.app_version,
         "status": "running",
-        "docs": "/docs" if settings.debug else None
+        "docs": "/docs" if _docs_are_enabled() else None
     }
+
+
+@app.get("/openapi.json", include_in_schema=False)
+async def openapi_schema(_: str = Depends(require_docs_auth)):
+    if not _docs_are_enabled():
+        raise HTTPException(status_code=404, detail="Not found")
+    return get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+
+
+@app.get("/docs", include_in_schema=False)
+async def swagger_ui(_: str = Depends(require_docs_auth)):
+    if not _docs_are_enabled():
+        raise HTTPException(status_code=404, detail="Not found")
+    return get_swagger_ui_html(
+        openapi_url="/openapi.json",
+        title=f"{app.title} - Swagger UI",
+    )
+
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc_ui(_: str = Depends(require_docs_auth)):
+    if not _docs_are_enabled():
+        raise HTTPException(status_code=404, detail="Not found")
+    return get_redoc_html(
+        openapi_url="/openapi.json",
+        title=f"{app.title} - ReDoc",
+    )
 
 
 if __name__ == "__main__":
@@ -202,7 +251,6 @@ if __name__ == "__main__":
         "app.main:app",
         host=settings.host,
         port=settings.port,
-        workers=settings.workers,
         log_config=None,  # Use our custom logging
         access_log=False  # Handled by middleware
     )

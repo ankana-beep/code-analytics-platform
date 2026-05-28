@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Code Analytics Report</title>
+    <link rel="stylesheet" href="report.css">
+  </head>
+  <body>
+    <main class="report-shell">
+      <header class="report-header">
+        <div>
+          <p class="eyebrow">Executive Code Health Report</p>
+          <h1 id="reportTitle">Code Analytics</h1>
+          <p id="reportSubtitle">Loading scan metrics...</p>
+        </div>
+        <div class="report-actions">
+          <div class="theme-toggle" aria-label="Report theme">
+            <button type="button" data-theme-option="dark" class="active" aria-pressed="true">Dark</button>
+            <button type="button" data-theme-option="light" aria-pressed="false">Light</button>
+          </div>
+          <a id="githubLink" class="link-button" href="#" target="_blank" rel="noreferrer" hidden>Open Repository</a>
+        </div>
+      </header>
+
+      <section id="messagePanel" class="message-panel" hidden>
+        <strong id="messageTitle"></strong>
+        <p id="messageText"></p>
+      </section>
+
+      <section class="hero-dashboard">
+        <article class="hero-card">
+          <div>
+            <p class="eyebrow">Overall Position</p>
+            <h2 id="executiveHeadline">Repository health is being evaluated.</h2>
+            <p id="executiveNarrative" class="hero-copy">The report will translate scan results into business impact, delivery readiness, and focused engineering actions.</p>
+          </div>
+          <div class="hero-score">
+            <div id="healthGauge" class="gauge" style="--score-percent: 0%">
+              <span id="healthScore">--</span>
+            </div>
+            <div>
+              <strong id="healthStatus">Waiting</strong>
+              <span id="readinessStatus">Release readiness pending</span>
+            </div>
+          </div>
+        </article>
+
+        <aside class="snapshot-stack">
+          <article class="snapshot-card">
+            <span>Status</span>
+            <strong id="scanStatus">--</strong>
+            <p id="scanProgress">0%</p>
+          </article>
+          <article class="snapshot-card">
+            <span>Files Reviewed</span>
+            <strong id="totalFiles">--</strong>
+            <p id="totalLoc">-- LOC</p>
+          </article>
+        </aside>
+      </section>
+
+      <section class="insight-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Risk Overview</p>
+              <h2>Business Impact Categories</h2>
+            </div>
+          </div>
+          <div id="riskCategoryList" class="risk-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Severity Mix</p>
+              <h2>Quality Signals</h2>
+            </div>
+          </div>
+          <div id="severitySummary" class="severity-dashboard"></div>
+        </article>
+      </section>
+
+      <section class="insight-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Delivery Readiness</p>
+              <h2>Release Confidence</h2>
+            </div>
+          </div>
+          <div id="readinessSummary" class="readiness-panel"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Technical Debt</p>
+              <h2>Estimated Remediation Effort</h2>
+            </div>
+          </div>
+          <div id="debtBreakdown" class="debt-panel"></div>
+        </article>
+      </section>
+
+      <section class="panel ai-summary-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">AI Summary</p>
+            <h2>Plain-English and Technical Overview</h2>
+          </div>
+          <div class="ai-summary-actions">
+            <span id="aiSummaryBadge" class="summary-badge">On demand</span>
+            <button id="aiSummaryButton" class="summary-action-button" type="button">Get AI Summary</button>
+          </div>
+        </div>
+        <p id="aiSummaryHeadline" class="ai-summary-headline">Generate an AI summary when you want a faster overview.</p>
+        <div class="ai-summary-copy">
+          <article class="ai-summary-card">
+            <span>For Everyone</span>
+            <p id="aiPlainSummary">Click the button to get a simple explanation that non-technical readers can understand.</p>
+          </article>
+          <article class="ai-summary-card">
+            <span>Technical Read</span>
+            <p id="aiTechnicalSummary">You can also generate a short engineering-focused summary based on the saved scan.</p>
+          </article>
+        </div>
+        <div class="ai-summary-lists">
+          <article class="ai-list-card">
+            <span>Strengths</span>
+            <ul id="aiStrengthsList" class="compact-list summary-list"></ul>
+          </article>
+          <article class="ai-list-card">
+            <span>Priority Concerns</span>
+            <ul id="aiConcernsList" class="compact-list summary-list"></ul>
+          </article>
+          <article class="ai-list-card">
+            <span>Quick Wins</span>
+            <ul id="aiQuickWinsList" class="compact-list summary-list"></ul>
+          </article>
+        </div>
+        <p id="aiConfidenceNote" class="ai-confidence-note">This is optional and only runs after you click the button.</p>
+      </section>
+
+      <section class="insight-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Priority Actions</p>
+              <h2>Recommended Next Steps</h2>
+            </div>
+          </div>
+          <ul id="suggestionsList" class="action-list"></ul>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Hotspots</p>
+              <h2>Modules Needing Attention</h2>
+            </div>
+          </div>
+          <div id="riskModulesList" class="module-list"></div>
+        </article>
+      </section>
+
+      <section class="details-grid operations-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Dependencies</p>
+              <h2>Package Health</h2>
+            </div>
+          </div>
+          <div id="dependencyList" class="dependency-dashboard"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Repository Metrics</p>
+              <h2>Engineering Snapshot</h2>
+            </div>
+          </div>
+          <div id="metricsGrid" class="metrics-grid metrics-grid-highlight"></div>
+        </article>
+      </section>
+
+      <section class="panel technology-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Technology Mix</p>
+            <h2>File Type Distribution</h2>
+          </div>
+        </div>
+        <div class="technology-grid">
+          <div class="technology-overview">
+            <div id="fileTypeSummary" class="technology-summary"></div>
+            <div id="fileTypeSegments" class="technology-segments"></div>
+            <div id="fileTypeChart" class="technology-chart"></div>
+          </div>
+          <div class="technology-insights">
+            <div class="breakdown-header">
+              <span>Portfolio read</span>
+              <strong id="fileTypeTotal">--</strong>
+            </div>
+            <div id="fileTypeInsights" class="insight-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="details-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Repository Context</p>
+              <h2>Scan Metadata</h2>
+            </div>
+          </div>
+          <dl id="contextList" class="definition-grid"></dl>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Maintainability</p>
+              <h2>Complexity Metrics</h2>
+            </div>
+          </div>
+          <dl id="complexityList" class="definition-grid"></dl>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">File Hotspots</p>
+            <h2>Largest Files</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Total</th>
+                <th>Code</th>
+                <th>Comments</th>
+                <th>Blank</th>
+                <th>TODOs</th>
+              </tr>
+            </thead>
+            <tbody id="largestFilesBody"></tbody>
+          </table>
+        </div>
+        <div id="largestFilesPagination" class="pagination-bar" hidden>
+          <button id="largestFilesPrevButton" class="pagination-button" type="button">Previous</button>
+          <span id="largestFilesPageInfo" class="pagination-info"></span>
+          <button id="largestFilesNextButton" class="pagination-button" type="button">Next</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Folder Concentration</p>
+            <h2>Folder Statistics</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Folder</th>
+                <th>Files</th>
+                <th>Lines</th>
+                <th>Size</th>
+                <th>Avg Complexity</th>
+              </tr>
+            </thead>
+            <tbody id="folderStatsBody"></tbody>
+          </table>
+        </div>
+        <div id="folderStatsPagination" class="pagination-bar" hidden>
+          <button id="folderStatsPrevButton" class="pagination-button" type="button">Previous</button>
+          <span id="folderStatsPageInfo" class="pagination-info"></span>
+          <button id="folderStatsNextButton" class="pagination-button" type="button">Next</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Issue Drill-Down</p>
+            <h2>Quality Findings</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Severity</th>
+                <th>Type</th>
+                <th>File</th>
+                <th>Line</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody id="issuesBody"></tbody>
+          </table>
+        </div>
+        <div id="issuesPagination" class="pagination-bar" hidden>
+          <button id="issuesPrevButton" class="pagination-button" type="button">Previous</button>
+          <span id="issuesPageInfo" class="pagination-info"></span>
+          <button id="issuesNextButton" class="pagination-button" type="button">Next</button>
+        </div>
+      </section>
+
+    </main>
+
+    <script src="report.js"></script>
+  </body>
+</html>

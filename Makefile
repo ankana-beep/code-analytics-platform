@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs clean test
+.PHONY: help build up down restart logs clean test local
 
 help:
 	@echo "Code Analytics Platform - Make Commands"
@@ -9,12 +9,9 @@ help:
 	@echo "restart        - Restart all services"
 	@echo "logs           - View logs from all services"
 	@echo "logs-api       - View API logs"
-	@echo "logs-worker    - View worker logs"
+	@echo "local          - Run the API locally with uvicorn reload"
 	@echo "clean          - Remove containers and volumes"
-	@echo "scale-workers  - Scale workers to N replicas (make scale-workers N=5)"
 	@echo "shell-api      - Open shell in API container"
-	@echo "shell-worker   - Open shell in worker container"
-	@echo "db-shell       - Open MongoDB shell"
 	@echo "redis-cli      - Open Redis CLI"
 
 build:
@@ -37,29 +34,15 @@ logs:
 logs-api:
 	docker-compose logs -f api
 
-logs-worker:
-	docker-compose logs -f worker
+local:
+	uvicorn app.main:app --reload --host 0.0.0.0
 
 clean:
 	docker-compose down -v
 	docker system prune -f
 
-scale-workers:
-	docker-compose up -d --scale worker=$(N)
-
 shell-api:
 	docker-compose exec api /bin/bash
 
-shell-worker:
-	docker-compose exec worker /bin/bash
-
-db-shell:
-	docker-compose exec mongodb mongosh
-
 redis-cli:
 	docker-compose exec redis redis-cli
-
-monitoring:
-	docker-compose --profile monitoring up -d prometheus grafana
-	@echo "Prometheus: http://localhost:9090"
-	@echo "Grafana: http://localhost:3000 (admin/admin)"

@@ -1,12 +1,14 @@
 """Helpers for validating and reading public GitHub repository metadata."""
+from __future__ import annotations
+
 import json
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
-
 
 GITHUB_OWNER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$")
 GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -30,7 +32,7 @@ class GitHubRepositoryRef:
 
 
 def parse_github_repository(value: str) -> Optional[GitHubRepositoryRef]:
-    """Parse a public GitHub repository URL."""
+    """Parse a GitHub repository URL."""
     normalized = value.strip()
     match = GITHUB_REPO_URL_RE.match(normalized)
     if not match:
@@ -52,15 +54,19 @@ def is_valid_repo(value: str) -> bool:
     return bool(GITHUB_REPO_RE.match(value.strip()))
 
 
-def github_api_get(path: str) -> Any:
-    """GET JSON from the GitHub API using only public unauthenticated access."""
+def github_api_get(path: str, access_token: str | None = None) -> Any:
+    """GET JSON from the GitHub API, optionally using a user OAuth token."""
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "code-analytics-platform",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if access_token:
+        headers["Authorization"] = f"Bearer {access_token}"
+
     request = urllib.request.Request(
         f"https://api.github.com{path}",
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "code-analytics-platform",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
+        headers=headers,
     )
 
     try:
@@ -68,7 +74,7 @@ def github_api_get(path: str) -> Any:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
-            raise GitHubError("GitHub resource was not found or is not public") from exc
+            raise GitHubError("GitHub resource was not found or your GitHub account does not have access") from exc
         if exc.code == 403:
             raise GitHubError("GitHub API rate limit reached. Try again later.") from exc
         raise GitHubError(f"GitHub API request failed with status {exc.code}") from exc
@@ -99,13 +105,14 @@ def list_public_repositories(username: str) -> List[Dict[str, Any]]:
     ]
 
 
-def list_public_branches(owner: str, repo: str) -> List[Dict[str, str]]:
-    """Return branches for a public GitHub repository."""
+def list_repository_branches(owner: str, repo: str, access_token: str | None = None) -> List[Dict[str, str]]:
+    """Return branches for a GitHub repository the request can access."""
     if not is_valid_owner(owner) or not is_valid_repo(repo):
-        raise GitHubError("Enter a valid public GitHub repository")
+        raise GitHubError("Enter a valid GitHub repository")
 
     branches = github_api_get(
-        f"/repos/{urllib.parse.quote(owner, safe='')}/{urllib.parse.quote(repo, safe='')}/branches?per_page=100"
+        f"/repos/{urllib.parse.quote(owner, safe='')}/{urllib.parse.quote(repo, safe='')}/branches?per_page=100",
+        access_token=access_token,
     )
     return [
         {
@@ -114,3 +121,52 @@ def list_public_branches(owner: str, repo: str) -> List[Dict[str, str]]:
         }
         for branch in branches
     ]
+
+
+def list_repository_work_in_progress(owner: str, repo: str, weeks: int = 8) -> List[Dict[str, Any]]:
+    """Return open pull requests grouped by the week they were created."""
+    if not is_valid_owner(owner) or not is_valid_repo(repo):
+        raise GitHubError("Enter a valid GitHub repository")
+
+    week_count = min(max(weeks, 1), 12)
+    now = datetime.now(timezone.utc)
+    current_week_start = now - timedelta(days=now.weekday())
+    current_week_start = current_week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    range_start = current_week_start - timedelta(weeks=week_count - 1)
+
+    buckets: Dict[str, Dict[str, Any]] = {}
+    for offset in range(week_count):
+        week_start = range_start + timedelta(weeks=offset)
+        iso_year, iso_week, _ = week_start.isocalendar()
+        key = week_start.date().isoformat()
+        buckets[key] = {
+            "week": f"Week {iso_week} {iso_year}",
+            "week_start": key,
+            "open_pull_requests": 0,
+        }
+
+    encoded_owner = urllib.parse.quote(owner, safe="")
+    encoded_repo = urllib.parse.quote(repo, safe="")
+    pulls: List[Dict[str, Any]] = []
+    for page in range(1, 6):
+        page_pulls = github_api_get(
+            f"/repos/{encoded_owner}/{encoded_repo}/pulls?state=open&sort=created&direction=asc&per_page=100&page={page}"
+        )
+        pulls.extend(page_pulls)
+        if len(page_pulls) < 100:
+            break
+
+    for pull in pulls:
+        created_at = pull.get("created_at")
+        if not created_at:
+            continue
+        created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        week_start = created - timedelta(days=created.weekday())
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        key = week_start.date().isoformat()
+        if key in buckets:
+            buckets[key]["open_pull_requests"] += 1
+
+    return list(buckets.values())
+
+

@@ -1,7 +1,8 @@
-"""Foundation scanner for public GitHub repositories.
+"""Foundation scanner for GitHub repositories.
 
 This module intentionally keeps execution simple: scans run synchronously and
-public GitHub archives are downloaded without cloning.
+GitHub archives are downloaded without cloning. Public repositories work without
+authentication; private repositories require a GitHub OAuth token with access.
 """
 from __future__ import annotations
 
@@ -24,7 +25,25 @@ from app.services.github_service import GitHubError, parse_github_repository
 
 
 IGNORED_FOLDERS = {"node_modules", ".git", "dist", "build", "coverage", "vendor"}
-SOURCE_EXTENSIONS = {".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".html", ".css", ".scss", ".json"}
+SOURCE_EXTENSIONS = {
+    ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
+    ".py", ".pyi",
+    ".java", ".kt", ".kts", ".groovy", ".scala",
+    ".go", ".rs",
+    ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx",
+    ".cs", ".fs", ".fsi", ".fsx",
+    ".swift", ".m", ".mm",
+    ".rb", ".php", ".pl", ".pm",
+    ".sh", ".bash", ".zsh", ".ps1", ".bat",
+    ".sql", ".r", ".dart", ".lua",
+    ".ex", ".exs", ".erl", ".hrl",
+    ".clj", ".cljs", ".cljc", ".edn",
+    ".hs", ".elm", ".ml", ".mli", ".nim", ".zig", ".sol",
+    ".vue", ".svelte", ".astro",
+    ".html", ".css", ".scss", ".sass", ".less",
+    ".json", ".json5", ".jsonc", ".xml", ".toml", ".ini", ".cfg", ".conf", ".properties",
+    ".md", ".txt",
+}
 TEST_PATTERNS = (
     ".test.",
     ".spec.",
@@ -61,15 +80,42 @@ DEVOPS_FILES = {
 }
 DOC_FILES = {"README.md", "LICENSE", "CONTRIBUTING.md", "CHANGELOG.md"}
 YAML_EXTENSIONS = {".yml", ".yaml"}
-COMMENT_PREFIXES = ("//", "#", "/*", "*", "*/", "<!--", "-->")
+SLASH_COMMENT_EXTENSIONS = {
+    ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
+    ".java", ".kt", ".kts", ".groovy", ".scala",
+    ".go", ".rs",
+    ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx",
+    ".cs", ".swift", ".m", ".mm",
+    ".php", ".dart", ".sol",
+    ".css", ".scss", ".sass", ".less",
+    ".jsonc", ".vue", ".svelte", ".astro",
+}
+HASH_COMMENT_EXTENSIONS = {
+    ".py", ".pyi", ".yml", ".yaml", ".toml",
+    ".sh", ".bash", ".zsh", ".rb", ".pl", ".pm",
+    ".r", ".conf", ".cfg", ".properties",
+}
+DASH_COMMENT_EXTENSIONS = {".sql", ".lua", ".hs", ".elm"}
+SEMICOLON_COMMENT_EXTENSIONS = {".ini"}
+HTML_COMMENT_EXTENSIONS = {".html", ".xml", ".md", ".vue", ".svelte", ".astro"}
+INDENTATION_FUNCTION_EXTENSIONS = {".py", ".pyi"}
+BRACE_FUNCTION_EXTENSIONS = {
+    ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
+    ".java", ".kt", ".kts", ".groovy", ".scala",
+    ".go", ".rs",
+    ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx",
+    ".cs", ".swift", ".m", ".mm",
+    ".php", ".dart", ".sol",
+}
+COMMENT_PREFIXES = ("//", "#", "/*", "*", "*/", "<!--", "-->", "--", ";")
 CODE_IN_COMMENT_RE = re.compile(
-    r"\b(function|const|let|var|if|for|while|return|class|def|import|from|public|private|console\.log)\b|[;{}=()]"
+    r"\b(function|const|let|var|if|for|while|return|class|def|import|from|public|private|func|fn|console\.log)\b|[;{}=()]"
 )
 IMPORT_RE = re.compile(
     r"(?:from\s+['\"]([^'\"]+)['\"]|import\s+(?:.+?\s+from\s+)?['\"]([^'\"]+)['\"]|require\(['\"]([^'\"]+)['\"]\))"
 )
 FUNCTION_RE = re.compile(
-    r"^\s*(?:export\s+)?(?:async\s+)?(?:function\s+\w+|\w+\s*[:=]\s*(?:async\s*)?\([^)]*\)\s*=>|def\s+\w+|(?:public|private|protected)?\s*(?:static\s+)?[\w<>\[\]]+\s+\w+\s*\([^)]*\))"
+    r"^\s*(?:pub\s+)?(?:export\s+)?(?:async\s+)?(?:fn\s+\w+|func\s+(?:\([^)]*\)\s*)?\w+|function\s+\w+|\w+\s*[:=]\s*(?:async\s*)?\([^)]*\)\s*=>|def\s+\w+|(?:public|private|protected|internal)?\s*(?:static\s+)?[\w<>\[\],:*&]+\s+\w+\s*\([^)]*\))"
 )
 
 
@@ -77,21 +123,28 @@ class BasicScannerError(ValueError):
     """Raised when a foundation scan cannot complete."""
 
 
-def _download_github_archive(owner: str, repo: str, branch: str, destination: Path) -> None:
+def _download_github_archive(
+    owner: str,
+    repo: str,
+    branch: str,
+    destination: Path,
+    access_token: str | None = None,
+) -> None:
     encoded_owner = urllib.parse.quote(owner, safe="")
     encoded_repo = urllib.parse.quote(repo, safe="")
     encoded_branch = urllib.parse.quote(branch or "main", safe="")
     archive_url = f"https://api.github.com/repos/{encoded_owner}/{encoded_repo}/tarball/{encoded_branch}"
     archive_path = destination / "repo.tar.gz"
 
-    request = urllib.request.Request(
-        archive_url,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "code-analytics-platform",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-    )
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "code-analytics-platform",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if access_token:
+        headers["Authorization"] = f"Bearer {access_token}"
+
+    request = urllib.request.Request(archive_url, headers=headers)
 
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
@@ -99,7 +152,7 @@ def _download_github_archive(owner: str, repo: str, branch: str, destination: Pa
                 shutil.copyfileobj(response, archive_file)
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
-            raise BasicScannerError("Repository or branch was not found, or it is not public") from exc
+            raise BasicScannerError("Repository or branch was not found, or your GitHub account does not have access") from exc
         if exc.code == 403:
             raise BasicScannerError("GitHub API rate limit reached. Try again later.") from exc
         raise BasicScannerError(f"GitHub archive request failed with status {exc.code}") from exc
@@ -138,12 +191,16 @@ def _line_kind(line: str, suffix: str) -> str:
     stripped = line.strip()
     if not stripped:
         return "blank"
-    if suffix in {".html", ".md"} and (stripped.startswith("<!--") or stripped.endswith("-->")):
+    if suffix in HTML_COMMENT_EXTENSIONS and (stripped.startswith("<!--") or stripped.endswith("-->")):
         return "comment"
-    if suffix in {".css", ".scss", ".js", ".jsx", ".ts", ".tsx", ".java"}:
+    if suffix in SLASH_COMMENT_EXTENSIONS:
         if stripped.startswith(("//", "/*", "*", "*/")):
             return "comment"
-    if suffix in {".py", ".yml", ".yaml", ".toml"} and stripped.startswith("#"):
+    if suffix in HASH_COMMENT_EXTENSIONS and stripped.startswith("#"):
+        return "comment"
+    if suffix in DASH_COMMENT_EXTENSIONS and stripped.startswith("--"):
+        return "comment"
+    if suffix in SEMICOLON_COMMENT_EXTENSIONS and stripped.startswith(";"):
         return "comment"
     return "code"
 
@@ -161,7 +218,7 @@ def _detect_long_functions(lines: list[str], suffix: str, threshold: int = 50) -
         if not FUNCTION_RE.match(line):
             continue
 
-        if suffix == ".py":
+        if suffix in INDENTATION_FUNCTION_EXTENSIONS:
             base_indent = len(line) - len(line.lstrip())
             end = index + 1
             for cursor in range(index + 1, len(lines)):
@@ -171,7 +228,7 @@ def _detect_long_functions(lines: list[str], suffix: str, threshold: int = 50) -
                     break
                 end = cursor + 1
             length = end - index
-        else:
+        elif suffix in BRACE_FUNCTION_EXTENSIONS:
             brace_balance = line.count("{") - line.count("}")
             end = index + 1
             for cursor in range(index + 1, len(lines)):
@@ -180,6 +237,8 @@ def _detect_long_functions(lines: list[str], suffix: str, threshold: int = 50) -
                 if brace_balance <= 0 and "{" in line:
                     break
             length = end - index
+        else:
+            continue
 
         if length > threshold:
             issues.append({"line": index + 1, "length": length})
@@ -529,17 +588,22 @@ def _build_manager_report(
     }
 
 
-def run_basic_scan(repository_url: str, branch: str = "main") -> dict[str, Any]:
+def run_basic_scan(
+    repository_url: str,
+    branch: str = "main",
+    access_token: str | None = None,
+) -> dict[str, Any]:
+    """Scan a GitHub repository using optional authenticated GitHub access."""
     repository = parse_github_repository(repository_url)
     if not repository:
-        raise GitHubError("Enter a valid public GitHub repository URL like https://github.com/owner/repo")
+        raise GitHubError("Enter a valid GitHub repository URL like https://github.com/owner/repo")
 
     scan_id = str(uuid4())
     started = time.time()
     temp_dir = Path(tempfile.mkdtemp(prefix="basic-scan-"))
 
     try:
-        _download_github_archive(repository.owner, repository.repo, branch, temp_dir)
+        _download_github_archive(repository.owner, repository.repo, branch, temp_dir, access_token)
         dependency_summary = _load_package_dependencies(temp_dir)
         declared_dependencies = set(dependency_summary["dependencies"]) | set(dependency_summary["dev_dependencies"])
         supported_files = sorted(

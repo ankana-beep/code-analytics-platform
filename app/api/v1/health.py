@@ -1,10 +1,5 @@
-"""
-Health check and metrics router.
-Provides endpoints for monitoring application health and Prometheus metrics.
-"""
+"""Health and runtime information endpoints."""
 from fastapi import APIRouter, Response
-from fastapi.responses import PlainTextResponse
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from app.domain.models import HealthCheck
 from app.core.config import settings
@@ -18,7 +13,7 @@ router = APIRouter(tags=["health"])
 @router.get("/health", response_model=HealthCheck)
 async def health_check():
     """
-    Health check endpoint for load balancers and monitoring.
+    Health check endpoint for load balancers and local runtime checks.
     
     Checks connectivity to MongoDB and returns status information.
     
@@ -40,7 +35,7 @@ async def health_check():
         logger.error(f"MongoDB health check failed: {str(e)}")
         services['mongodb'] = "unhealthy"
         overall_status = "unhealthy"
-    
+
     return HealthCheck(
         status=overall_status,
         version=settings.app_version,
@@ -81,28 +76,6 @@ async def liveness_check():
     This is a simple check that doesn't verify dependencies.
     """
     return {"status": "alive"}
-
-
-@router.get("/metrics", response_class=PlainTextResponse)
-async def metrics():
-    """
-    Prometheus metrics endpoint.
-    
-    Exposes application metrics in Prometheus format for scraping.
-    
-    Returns:
-        Metrics in Prometheus text format
-    """
-    if not settings.enable_metrics:
-        return Response(
-            content="Metrics disabled",
-            status_code=404
-        )
-    
-    return Response(
-        content=generate_latest(),
-        media_type=CONTENT_TYPE_LATEST
-    )
 
 
 @router.get("/info")

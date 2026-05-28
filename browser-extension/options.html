@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Code Analytics Settings</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main class="settings-shell">
+      <section class="settings-panel">
+        <header>
+          <p class="eyebrow">Code Analytics Bridge</p>
+          <h1>Settings</h1>
+        </header>
+
+        <form id="settingsForm">
+          <label for="apiBaseUrl">API base URL</label>
+          <input id="apiBaseUrl" name="apiBaseUrl" type="url" required>
+
+          <div class="button-row">
+            <button class="primary-button" type="submit">Save Settings</button>
+            <button id="resetButton" class="secondary-button" type="button">Reset Defaults</button>
+          </div>
+        </form>
+
+        <p id="statusMessage" class="status-message" role="status"></p>
+      </section>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>
