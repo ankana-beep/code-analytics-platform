@@ -6,8 +6,8 @@ The app now runs with an API-first browser extension flow:
 
 - FastAPI backend for GitHub lookup, scan execution, and persistence
 - Browser extension for starting scans and viewing reports
-- MongoDB for saved scan results
-- Redis for short-lived GitHub metadata caching
+- MongoDB Atlas or another external MongoDB for saved scan results
+- Redis for AI summary caching and rate limiting
 - No separate frontend service
 - No separate worker service
 - No queue/worker stack
@@ -18,7 +18,7 @@ The app now runs with an API-first browser extension flow:
 ```text
 Browser extension popup
   -> POST /api/v1/basic-scans
-  -> GET /api/v1/github/... can be served from Redis cache
+  -> GET /api/v1/github/... reads live GitHub metadata
   -> FastAPI validates the repository URL
   -> FastAPI downloads the selected GitHub branch tarball
   -> FastAPI scans supported files in-process
@@ -34,7 +34,6 @@ This keeps the existing scan endpoints intact while removing the frontend and ex
 Docker Compose now starts only:
 
 - `api`
-- `mongodb`
 - `redis`
 
 ## API Surface
@@ -89,7 +88,7 @@ The important backend settings are:
 ```env
 HOST=0.0.0.0
 PORT=8000
-MONGODB_URL=mongodb://mongodb:27017
+MONGODB_URL=mongodb+srv://<user>:<password>@<cluster>/<db>?retryWrites=true&w=majority
 MONGODB_DATABASE=code_analytics
 REDIS_URL=redis://redis:6379/0
 CACHE_ENABLED=true
@@ -102,7 +101,7 @@ CORS_ORIGINS=["*"]
 
 - Scans are synchronous from the API point of view, but the blocking work is pushed off the event loop with `asyncio.to_thread(...)`.
 - MongoDB is optional for startup. If Mongo is unavailable, the app still runs and stores scan results in memory for the current process.
-- Redis is optional and used only as a small cache for GitHub repository and branch lookups.
+- Redis is optional and used only for AI summary caching and rate limiting.
 - The health routes remain available, but the old metrics endpoint and Docker monitoring stack were removed as part of the simplification.
 
 ## Verification

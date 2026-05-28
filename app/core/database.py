@@ -18,6 +18,10 @@ class MongoDBManager:
     
     async def connect(self):
         """Establish connection to MongoDB with connection pooling."""
+        if not settings.mongodb_url:
+            logger.info("MongoDB URL not configured; skipping database connection")
+            return
+
         try:
             self.client = AsyncIOMotorClient(
                 settings.mongodb_url,

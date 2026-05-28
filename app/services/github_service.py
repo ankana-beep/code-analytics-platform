@@ -9,10 +9,6 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from app.core.cache import cache_manager
-from app.core.config import settings
-
-
 GITHUB_OWNER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$")
 GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 GITHUB_REPO_URL_RE = re.compile(
@@ -127,28 +123,10 @@ def list_repository_branches(owner: str, repo: str, access_token: str | None = N
 
 
 async def list_public_repositories_cached(username: str) -> List[Dict[str, Any]]:
-    """Return public repositories, using Redis cache when enabled."""
-    cache_key = f"github:user-repos:{username.lower()}"
-    if settings.cache_enabled:
-        cached = await cache_manager.get_json(cache_key)
-        if cached is not None:
-            return cached
-
-    repositories = list_public_repositories(username)
-    if settings.cache_enabled:
-        await cache_manager.set_json(cache_key, repositories)
-    return repositories
+    """Return public repositories without Redis caching."""
+    return list_public_repositories(username)
 
 
 async def list_public_branches_cached(owner: str, repo: str) -> List[Dict[str, str]]:
-    """Return public branches, using Redis cache when enabled."""
-    cache_key = f"github:repo-branches:{owner.lower()}:{repo.lower()}"
-    if settings.cache_enabled:
-        cached = await cache_manager.get_json(cache_key)
-        if cached is not None:
-            return cached
-
-    branches = list_public_branches(owner, repo)
-    if settings.cache_enabled:
-        await cache_manager.set_json(cache_key, branches)
-    return branches
+    """Return public branches without Redis caching."""
+    return list_repository_branches(owner, repo)
