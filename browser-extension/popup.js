@@ -74,10 +74,6 @@ const elements = {
   suggestionsList: document.getElementById('suggestionsList')
 };
 
-function storageKey(repositoryUrl) {
-  return `latestScan:${repositoryUrl}`;
-}
-
 const AUTH_STORAGE_KEY = 'auth:accessToken';
 
 function formatNumber(value) {
@@ -379,42 +375,11 @@ function renderBranches() {
   setBusy(state.busy);
 }
 
-async function getCachedScanId() {
-  const key = storageKey(state.repository.repositoryUrl);
-  const cached = await chrome.storage.local.get(key);
-  return cached[key] || '';
-}
-
-async function saveCachedScan(scan) {
-  const scanId = scan && (scan.id || scan._id);
-  if (!scanId) {
-    return;
-  }
-  await chrome.storage.local.set({
-    [storageKey(state.repository.repositoryUrl)]: scanId
-  });
-}
-
 async function fetchScanDetails(scanId) {
   const scan = await apiFetch(`/basic-scans/${encodeURIComponent(scanId)}`);
   state.currentScan = scan;
   renderScan(scan);
   return scan;
-}
-
-async function loadCachedScan() {
-  const scanId = await getCachedScanId();
-  if (!scanId) {
-    renderEmptyScan();
-    return;
-  }
-
-  try {
-    await fetchScanDetails(scanId);
-  } catch (error) {
-    renderEmptyScan();
-    showMessage('Cached scan unavailable', error.message, 'error');
-  }
 }
 
 function issueSeverityClass(issue) {
@@ -551,7 +516,6 @@ async function analyzeRepository() {
       })
     });
     state.currentScan = scan;
-    await saveCachedScan(scan);
     renderScan(scan);
     showMessage('Scan complete', 'The latest repository metrics are ready.', 'success');
   } catch (error) {
@@ -631,8 +595,7 @@ async function initializePopup() {
     clearMessage();
 
     await Promise.allSettled([
-      fetchBranches(),
-      loadCachedScan()
+      fetchBranches()
     ]).then((results) => {
       const branchResult = results[0];
       if (branchResult.status === 'rejected') {

@@ -2,7 +2,6 @@
 from fastapi import APIRouter, Response
 
 from app.domain.models import HealthCheck
-from app.core.cache import cache_manager
 from app.core.config import settings
 from app.core.database import mongodb_manager
 from app.core.logging import logger
@@ -37,9 +36,6 @@ async def health_check():
         services['mongodb'] = "unhealthy"
         overall_status = "unhealthy"
 
-    if settings.cache_enabled and settings.redis_url:
-        services["redis"] = "healthy" if cache_manager.is_connected else "disconnected"
-    
     return HealthCheck(
         status=overall_status,
         version=settings.app_version,

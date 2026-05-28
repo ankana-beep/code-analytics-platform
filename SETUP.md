@@ -16,7 +16,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Set `MONGODB_URL` in `.env` to your MongoDB Atlas connection string before starting.
+Set `MONGODB_URI` in `.env` to your MongoDB Atlas connection string before starting.
 
 ## Start Locally
 

@@ -170,11 +170,3 @@ def list_repository_work_in_progress(owner: str, repo: str, weeks: int = 8) -> L
     return list(buckets.values())
 
 
-async def list_public_repositories_cached(username: str) -> List[Dict[str, Any]]:
-    """Return public repositories without Redis caching."""
-    return list_public_repositories(username)
-
-
-async def list_public_branches_cached(owner: str, repo: str) -> List[Dict[str, str]]:
-    """Return public branches without Redis caching."""
-    return list_repository_branches(owner, repo)

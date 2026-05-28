@@ -27,18 +27,16 @@ class Settings(BaseSettings):
     port: int = 8000
     
     # MongoDB
-    mongodb_url: str | None = Field(
+    mongodb_uri: str | None = Field(
         default=None,
-        description="MongoDB connection URL"
+        description="MongoDB connection URI"
     )
     mongodb_database: str = "code_analytics"
     mongodb_max_pool_size: int = 100
     mongodb_min_pool_size: int = 10
 
-    # Cache
+    # Redis is reserved for AI summary caching and AI summary rate limiting.
     redis_url: str | None = "redis://redis:6379/0"
-    cache_enabled: bool = True
-    cache_ttl_seconds: int = 300
 
     # OpenAI AI summaries
     openai_api_key: str | None = Field(

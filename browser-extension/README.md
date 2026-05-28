@@ -1,6 +1,6 @@
 # Code Analytics Browser Extension
 
-Manifest V3 prototype for Chrome and Edge. It detects a GitHub repository tab, fetches branches from the Code Analytics API, starts a scan, caches the latest scan ID per repository, and shows compact scan metrics in the popup. Public repositories work without login, while private repositories prompt for GitHub authentication only when access is needed.
+Manifest V3 prototype for Chrome and Edge. It detects a GitHub repository tab, fetches branches from the Code Analytics API, starts a scan, and shows compact scan metrics in the popup. Public repositories work without login, while private repositories prompt for GitHub authentication only when access is needed.
 
 ## Files
 
@@ -13,7 +13,7 @@ Manifest V3 prototype for Chrome and Edge. It detects a GitHub repository tab, f
 
 - API base URL: `http://localhost:8000/api/v1`
 
-Settings are saved in `chrome.storage.sync`. Latest scan IDs are saved in `chrome.storage.local` using the canonical repository URL.
+Settings are saved in `chrome.storage.sync`.
 
 The **Open Report** button opens an extension-owned report page when a scan is loaded:
 
@@ -27,13 +27,12 @@ The extension stores the backend JWT in `chrome.storage.local` after GitHub logi
 ## Load In Chrome Or Edge
 
 1. Start the backend API at `http://localhost:8000`.
-2. Start the main app at `http://localhost:5173`.
-3. Open `chrome://extensions` or `edge://extensions`.
-4. Enable Developer mode.
-5. Click **Load unpacked**.
-6. Select this `browser-extension` folder.
-7. Visit a repository URL such as `https://github.com/owner/repo`.
-8. Click the extension icon, choose a branch, and click **Analyze Repo**.
+2. Open `chrome://extensions` or `edge://extensions`.
+3. Enable Developer mode.
+4. Click **Load unpacked**.
+5. Select this `browser-extension` folder.
+6. Visit a repository URL such as `https://github.com/owner/repo`.
+7. Click the extension icon, choose a branch, and click **Analyze Repo**.
 
 ## Validation
 

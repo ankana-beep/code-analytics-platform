@@ -1,4 +1,4 @@
-"""Optional Redis cache manager for lightweight read caching."""
+"""Optional Redis cache manager for AI summary caching and rate limiting."""
 from __future__ import annotations
 
 import json
@@ -17,8 +17,8 @@ class CacheManager:
         self.client: Redis | None = None
 
     async def connect(self) -> None:
-        """Connect to Redis when caching is enabled."""
-        if not settings.cache_enabled or not settings.redis_url:
+        """Connect to Redis when AI summary caching is configured."""
+        if not settings.redis_url:
             return
 
         try:
@@ -28,11 +28,11 @@ class CacheManager:
                 decode_responses=True,
             )
             await self.client.ping()
-            logger.info("Redis cache connected")
+            logger.info("Redis connected for AI summaries")
         except Exception as exc:
             self.client = None
             logger.warning(
-                "Redis cache unavailable; continuing without cache",
+                "Redis unavailable; AI summaries will use in-memory rate limits",
                 extra={"error": str(exc)},
             )
 
@@ -41,10 +41,10 @@ class CacheManager:
         if self.client is not None:
             await self.client.aclose()
             self.client = None
-            logger.info("Redis cache disconnected")
+            logger.info("Redis disconnected")
 
     async def get_json(self, key: str) -> Any | None:
-        """Read JSON data from cache."""
+        """Read JSON data from the AI summary cache."""
         if self.client is None:
             return None
 
@@ -54,14 +54,14 @@ class CacheManager:
         return json.loads(cached)
 
     async def set_json(self, key: str, value: Any, ttl_seconds: int | None = None) -> None:
-        """Store JSON data in cache."""
+        """Store JSON data in the AI summary cache."""
         if self.client is None:
             return
 
         await self.client.set(
             key,
             json.dumps(value),
-            ex=ttl_seconds or settings.cache_ttl_seconds,
+            ex=ttl_seconds or settings.ai_summary_cache_ttl_seconds,
         )
 
     @property

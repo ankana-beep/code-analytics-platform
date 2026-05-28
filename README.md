@@ -88,11 +88,9 @@ The important backend settings are:
 ```env
 HOST=0.0.0.0
 PORT=8000
-MONGODB_URL=mongodb+srv://<user>:<password>@<cluster>/<db>?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/<db>?retryWrites=true&w=majority
 MONGODB_DATABASE=code_analytics
 REDIS_URL=redis://redis:6379/0
-CACHE_ENABLED=true
-CACHE_TTL_SECONDS=300
 LOG_LEVEL=INFO
 CORS_ORIGINS=["*"]
 ```

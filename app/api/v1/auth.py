@@ -26,7 +26,7 @@ router = APIRouter(prefix="/auth/github", tags=["auth"])
 
 
 class GitHubLoginResponse(BaseModel):
-    """Response returned when the frontend requests the GitHub login URL."""
+    """Response returned when a client requests the GitHub login URL."""
 
     authorization_url: str = Field(..., description="GitHub OAuth authorization URL")
 

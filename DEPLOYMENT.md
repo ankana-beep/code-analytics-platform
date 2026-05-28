@@ -14,7 +14,7 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Make sure `.env` includes a valid `MONGODB_URL` for your Atlas cluster before starting the stack.
+Make sure `.env` includes a valid `MONGODB_URI` for your Atlas cluster before starting the stack.
 
 ## Checks
 
