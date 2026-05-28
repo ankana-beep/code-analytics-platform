@@ -12,7 +12,6 @@ help:
 	@echo "local          - Run the API locally with uvicorn reload"
 	@echo "clean          - Remove containers and volumes"
 	@echo "shell-api      - Open shell in API container"
-	@echo "db-shell       - Open MongoDB shell"
 	@echo "redis-cli      - Open Redis CLI"
 
 build:
@@ -44,9 +43,6 @@ clean:
 
 shell-api:
 	docker-compose exec api /bin/bash
-
-db-shell:
-	docker-compose exec mongodb mongosh
 
 redis-cli:
 	docker-compose exec redis redis-cli

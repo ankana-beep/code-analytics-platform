@@ -27,8 +27,8 @@ class Settings(BaseSettings):
     port: int = 8000
     
     # MongoDB
-    mongodb_url: str = Field(
-        default="mongodb://mongodb:27017",
+    mongodb_url: str | None = Field(
+        default=None,
         description="MongoDB connection URL"
     )
     mongodb_database: str = "code_analytics"
