@@ -3,8 +3,8 @@ from fastapi import APIRouter, HTTPException
 
 from app.services.github_service import (
     GitHubError,
-    list_public_branches,
-    list_public_repositories,
+    list_public_branches_cached,
+    list_public_repositories_cached,
 )
 
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/github", tags=["github"])
 async def get_public_repositories(username: str):
     """List public repositories for a public GitHub username."""
     try:
-        return list_public_repositories(username)
+        return await list_public_repositories_cached(username)
     except GitHubError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -24,6 +24,6 @@ async def get_public_repositories(username: str):
 async def get_public_repository_branches(owner: str, repo: str):
     """List branches for a public GitHub repository."""
     try:
-        return list_public_branches(owner, repo)
+        return await list_public_branches_cached(owner, repo)
     except GitHubError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -1,11 +1,9 @@
 const DEFAULT_SETTINGS = {
-  apiBaseUrl: 'http://localhost:8000/api/v1',
-  appUrl: 'http://localhost:5173'
+  apiBaseUrl: 'http://localhost:8000/api/v1'
 };
 
 const form = document.getElementById('settingsForm');
 const apiBaseUrlInput = document.getElementById('apiBaseUrl');
-const appUrlInput = document.getElementById('appUrl');
 const resetButton = document.getElementById('resetButton');
 const statusMessage = document.getElementById('statusMessage');
 
@@ -25,18 +23,15 @@ function showStatus(message) {
 async function loadSettings() {
   const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   apiBaseUrlInput.value = settings.apiBaseUrl || DEFAULT_SETTINGS.apiBaseUrl;
-  appUrlInput.value = settings.appUrl || DEFAULT_SETTINGS.appUrl;
 }
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
 
   const apiBaseUrl = normalizeUrl(apiBaseUrlInput.value);
-  const appUrl = normalizeUrl(appUrlInput.value);
 
-  await chrome.storage.sync.set({ apiBaseUrl, appUrl });
+  await chrome.storage.sync.set({ apiBaseUrl });
   apiBaseUrlInput.value = apiBaseUrl;
-  appUrlInput.value = appUrl;
   showStatus('Settings saved.');
 });
 

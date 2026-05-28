@@ -40,6 +40,7 @@ select {
 }
 
 .topbar,
+.auth-panel,
 .repo-panel,
 .summary-panel,
 .list-panel,
@@ -130,11 +131,51 @@ h3 {
 }
 
 .repo-panel,
+.auth-panel,
 .summary-panel,
 .list-panel,
 .footer-actions,
 .message-panel {
   padding: 10px;
+}
+
+.auth-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.auth-panel > div:first-child {
+  min-width: 0;
+}
+
+#authStatus,
+#authUserName {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#authStatus {
+  font-size: 13px;
+}
+
+#authUserName {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.auth-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.compact-button {
+  min-height: 32px;
+  padding: 0 10px;
 }
 
 .repo-heading {
@@ -214,8 +255,23 @@ select:disabled {
 }
 
 .message-panel {
-  border-color: #f0c36d;
-  background: #fff8e9;
+  border-color: #cdd8ea;
+  background: #f7faff;
+}
+
+.message-panel.info {
+  border-color: #cdd8ea;
+  background: #f7faff;
+}
+
+.message-panel.notice {
+  border-color: #f0d08a;
+  background: #fff9ec;
+}
+
+.message-panel.success {
+  border-color: #9bd7b5;
+  background: #eefbf3;
 }
 
 .message-panel.error {
@@ -226,6 +282,22 @@ select:disabled {
 .message-panel strong {
   display: block;
   margin-bottom: 2px;
+}
+
+.message-panel.info strong {
+  color: var(--accent-strong);
+}
+
+.message-panel.notice strong {
+  color: var(--warning);
+}
+
+.message-panel.success strong {
+  color: var(--good);
+}
+
+.message-panel.error strong {
+  color: var(--error);
 }
 
 .status-row {

@@ -1,6 +1,5 @@
 const DEFAULT_SETTINGS = {
-  apiBaseUrl: 'http://localhost:8000/api/v1',
-  appUrl: 'http://localhost:5173'
+  apiBaseUrl: 'http://localhost:8000/api/v1'
 };
 
 const IGNORED_GITHUB_ROOTS = new Set([
@@ -30,11 +29,14 @@ const IGNORED_GITHUB_ROOTS = new Set([
   'trending'
 ]);
 
-const REPO_ALLOWED_MODES = new Set(['tree']);
+const REPO_ALLOWED_MODES = new Set(['tree', 'blob']);
 
 const state = {
   settings: { ...DEFAULT_SETTINGS },
+  accessToken: '',
+  currentUser: null,
   repository: null,
+  activeTabUrl: '',
   branches: [],
   selectedBranch: '',
   currentScan: null,
@@ -47,6 +49,10 @@ const elements = {
   messagePanel: document.getElementById('messagePanel'),
   messageTitle: document.getElementById('messageTitle'),
   messageText: document.getElementById('messageText'),
+  authStatus: document.getElementById('authStatus'),
+  authUserName: document.getElementById('authUserName'),
+  loginButton: document.getElementById('loginButton'),
+  logoutButton: document.getElementById('logoutButton'),
   repoName: document.getElementById('repoName'),
   branchHint: document.getElementById('branchHint'),
   branchSelect: document.getElementById('branchSelect'),
@@ -72,6 +78,8 @@ function storageKey(repositoryUrl) {
   return `latestScan:${repositoryUrl}`;
 }
 
+const AUTH_STORAGE_KEY = 'auth:accessToken';
+
 function formatNumber(value) {
   return Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '--';
 }
@@ -90,6 +98,8 @@ function normalizeBaseUrl(value) {
 
 function setBusy(isBusy) {
   state.busy = isBusy;
+  elements.loginButton.disabled = isBusy;
+  elements.logoutButton.disabled = isBusy;
   elements.analyzeButton.disabled = isBusy || !state.repository || state.branches.length === 0;
   elements.refreshButton.disabled = isBusy || !state.currentScan;
   elements.branchSelect.disabled = isBusy || !state.repository || state.branches.length === 0;
@@ -99,7 +109,8 @@ function setBusy(isBusy) {
 function showMessage(title, text, tone = 'info') {
   elements.messageTitle.textContent = title;
   elements.messageText.textContent = text;
-  elements.messagePanel.classList.toggle('error', tone === 'error');
+  elements.messagePanel.classList.remove('info', 'success', 'notice', 'error');
+  elements.messagePanel.classList.add(tone);
   elements.messagePanel.hidden = false;
 }
 
@@ -107,7 +118,7 @@ function clearMessage() {
   elements.messagePanel.hidden = true;
   elements.messageTitle.textContent = '';
   elements.messageText.textContent = '';
-  elements.messagePanel.classList.remove('error');
+  elements.messagePanel.classList.remove('info', 'success', 'notice', 'error');
 }
 
 function parseGitHubRepository(rawUrl) {
@@ -134,12 +145,14 @@ function parseGitHubRepository(rawUrl) {
   }
 
   let branchFromUrl = '';
+  let refPathParts = [];
   if (parts.length > 2) {
-    const mode = parts[2];
+    const mode = parts[2].toLowerCase();
     if (!REPO_ALLOWED_MODES.has(mode)) {
       return null;
     }
-    branchFromUrl = decodeURIComponent(parts.slice(3).join('/'));
+    refPathParts = parts.slice(3).map((part) => decodeURIComponent(part));
+    branchFromUrl = refPathParts[0] || '';
   }
 
   return {
@@ -147,7 +160,9 @@ function parseGitHubRepository(rawUrl) {
     repo,
     fullName: `${owner}/${repo}`,
     repositoryUrl: `https://github.com/${owner}/${repo}`,
-    branchFromUrl
+    branchFromUrl,
+    refPathParts,
+    githubPath: `${url.pathname}${url.search}${url.hash}`
   };
 }
 
@@ -159,17 +174,36 @@ async function getActiveTab() {
 async function loadSettings() {
   const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   state.settings = {
-    apiBaseUrl: normalizeBaseUrl(settings.apiBaseUrl || DEFAULT_SETTINGS.apiBaseUrl),
-    appUrl: normalizeBaseUrl(settings.appUrl || DEFAULT_SETTINGS.appUrl)
+    apiBaseUrl: normalizeBaseUrl(settings.apiBaseUrl || DEFAULT_SETTINGS.apiBaseUrl)
   };
 }
 
+async function loadStoredAccessToken() {
+  const stored = await chrome.storage.local.get(AUTH_STORAGE_KEY);
+  state.accessToken = stored[AUTH_STORAGE_KEY] || '';
+}
+
+async function saveAccessToken(token) {
+  state.accessToken = token;
+  if (token) {
+    await chrome.storage.local.set({ [AUTH_STORAGE_KEY]: token });
+    return;
+  }
+  await chrome.storage.local.remove(AUTH_STORAGE_KEY);
+}
+
 async function apiFetch(path, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {})
+  };
+  if (state.accessToken) {
+    headers.Authorization = `Bearer ${state.accessToken}`;
+  }
+
   const response = await fetch(`${state.settings.apiBaseUrl}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    },
+    credentials: 'include',
+    headers,
     ...options
   });
 
@@ -191,6 +225,113 @@ async function apiFetch(path, options = {}) {
   return body;
 }
 
+function renderAuth() {
+  if (state.currentUser) {
+    const displayName = state.currentUser.name || state.currentUser.login;
+    elements.authStatus.textContent = 'Signed in';
+    elements.authUserName.textContent = displayName ? `@${state.currentUser.login}` : '';
+    elements.loginButton.hidden = true;
+    elements.logoutButton.hidden = false;
+  } else {
+    elements.authStatus.textContent = 'Not signed in';
+    elements.authUserName.textContent = 'Public repositories work without login.';
+    elements.loginButton.hidden = false;
+    elements.logoutButton.hidden = true;
+  }
+
+  setBusy(state.busy);
+}
+
+function isGitHubAccessError(error) {
+  const message = String(error && error.message ? error.message : '').toLowerCase();
+  return (
+    message.includes('does not have access') ||
+    message.includes('not found') ||
+    message.includes('private repositor') ||
+    message.includes('private repositorie')
+  );
+}
+
+function showPrivateRepoLoginMessage(action) {
+  const normalizedAction = action === 'scan' ? 'analyze this repository' : 'load its branches';
+  showMessage(
+    'Private repository detected',
+    `We couldn't ${normalizedAction} anonymously. If this repo is private, sign in with GitHub to continue.`,
+    'notice'
+  );
+}
+
+async function loadCurrentUser() {
+  try {
+    state.currentUser = await apiFetch('/auth/github/user');
+  } catch {
+    state.currentUser = null;
+    if (state.accessToken) {
+      await saveAccessToken('');
+    }
+  }
+
+  renderAuth();
+}
+
+async function startGitHubLogin() {
+  setBusy(true);
+  clearMessage();
+
+  try {
+    const extensionRedirectUrl = chrome.identity.getRedirectURL('github');
+    const body = await apiFetch(
+      `/auth/github/login?extension_redirect_url=${encodeURIComponent(extensionRedirectUrl)}`
+    );
+    if (!body || !body.authorization_url) {
+      throw new Error('Backend did not return a GitHub authorization URL.');
+    }
+
+    const callbackUrl = await chrome.identity.launchWebAuthFlow({
+      url: body.authorization_url,
+      interactive: true
+    });
+    const token = parseAccessTokenFromCallback(callbackUrl);
+    await saveAccessToken(token);
+    await loadCurrentUser();
+    if (state.repository) {
+      await fetchBranches();
+    }
+    showMessage('GitHub connected', 'You can now open and analyze private repositories you have access to.', 'success');
+  } catch (error) {
+    showMessage('Login failed', error.message, 'error');
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function logout() {
+  setBusy(true);
+  clearMessage();
+
+  try {
+    await apiFetch('/auth/github/logout', { method: 'POST' });
+    await saveAccessToken('');
+    state.currentUser = null;
+    renderAuth();
+    showMessage('Signed out', 'You can still analyze public repositories without signing in.', 'info');
+  } catch (error) {
+    showMessage('Logout failed', error.message, 'error');
+  } finally {
+    setBusy(false);
+  }
+}
+
+function parseAccessTokenFromCallback(callbackUrl) {
+  const url = new URL(callbackUrl);
+  const params = new URLSearchParams(url.hash.replace(/^#/, ''));
+  const token = params.get('access_token');
+  if (!token) {
+    throw new Error('Authentication completed without an access token.');
+  }
+  return token;
+}
+
 async function fetchBranches() {
   const encodedUrl = encodeURIComponent(state.repository.repositoryUrl);
   const branches = await apiFetch(`/basic-scans/branches?repository_url=${encodedUrl}`);
@@ -200,8 +341,17 @@ async function fetchBranches() {
 
 function pickDefaultBranch() {
   const branchNames = state.branches.map((branch) => branch.name);
-  if (state.repository.branchFromUrl && branchNames.includes(state.repository.branchFromUrl)) {
-    return state.repository.branchFromUrl;
+  const refPathParts = state.repository.refPathParts || [];
+  const branchFromPath = branchNames
+    .slice()
+    .sort((a, b) => b.split('/').length - a.split('/').length)
+    .find((branchName) => {
+      const branchParts = branchName.split('/');
+      return branchParts.every((part, index) => refPathParts[index] === part);
+    });
+
+  if (branchFromPath) {
+    return branchFromPath;
   }
   if (branchNames.includes('main')) {
     return 'main';
@@ -354,6 +504,36 @@ function renderScan(scan) {
   setBusy(state.busy);
 }
 
+function getCurrentScanId() {
+  return state.currentScan && (state.currentScan.id || state.currentScan._id);
+}
+
+function buildExtensionReportUrl() {
+  const scanId = getCurrentScanId();
+  const target = new URL(chrome.runtime.getURL('report.html'));
+
+  target.searchParams.set('source', 'extension');
+
+  if (scanId) {
+    target.searchParams.set('scan_id', scanId);
+  }
+
+  if (state.repository) {
+    target.searchParams.set('repository_url', state.repository.repositoryUrl);
+    target.searchParams.set('github_path', state.repository.githubPath || '');
+  }
+
+  if (state.selectedBranch) {
+    target.searchParams.set('branch', state.selectedBranch);
+  }
+
+  if (state.activeTabUrl) {
+    target.searchParams.set('github_url', state.activeTabUrl);
+  }
+
+  return target.toString();
+}
+
 async function analyzeRepository() {
   if (!state.repository || !state.selectedBranch) {
     return;
@@ -373,8 +553,12 @@ async function analyzeRepository() {
     state.currentScan = scan;
     await saveCachedScan(scan);
     renderScan(scan);
-    showMessage('Scan complete', 'Latest repository metrics are loaded.');
+    showMessage('Scan complete', 'The latest repository metrics are ready.', 'success');
   } catch (error) {
+    if (!state.currentUser && isGitHubAccessError(error)) {
+      showPrivateRepoLoginMessage('scan');
+      return;
+    }
     showMessage('Analysis failed', error.message, 'error');
   } finally {
     setBusy(false);
@@ -391,7 +575,7 @@ async function refreshScan() {
   clearMessage();
   try {
     await fetchScanDetails(scanId);
-    showMessage('Scan refreshed', 'Loaded the latest saved details.');
+    showMessage('Scan refreshed', 'The saved report details are up to date.', 'success');
   } catch (error) {
     showMessage('Refresh failed', error.message, 'error');
   } finally {
@@ -400,11 +584,7 @@ async function refreshScan() {
 }
 
 function openApp() {
-  const scanId = state.currentScan && (state.currentScan.id || state.currentScan._id);
-  const target = scanId
-    ? `${state.settings.appUrl}/scans/${encodeURIComponent(scanId)}`
-    : state.settings.appUrl;
-  chrome.tabs.create({ url: target });
+  chrome.tabs.create({ url: buildExtensionReportUrl() });
 }
 
 function renderRepository(repository) {
@@ -434,8 +614,12 @@ async function initializePopup() {
 
   try {
     await loadSettings();
+    await loadStoredAccessToken();
+    await loadCurrentUser();
+
     const tab = await getActiveTab();
     const repository = tab && tab.url ? parseGitHubRepository(tab.url) : null;
+    state.activeTabUrl = tab && tab.url ? tab.url : '';
 
     if (!repository) {
       renderUnsupported();
@@ -453,6 +637,10 @@ async function initializePopup() {
       const branchResult = results[0];
       if (branchResult.status === 'rejected') {
         elements.branchSelect.replaceChildren(new Option('Unable to load branches', ''));
+        if (!state.currentUser && isGitHubAccessError(branchResult.reason)) {
+          showPrivateRepoLoginMessage('branches');
+          return;
+        }
         showMessage('Branch lookup failed', branchResult.reason.message, 'error');
       }
     });
@@ -470,6 +658,8 @@ elements.branchSelect.addEventListener('change', (event) => {
 elements.analyzeButton.addEventListener('click', analyzeRepository);
 elements.refreshButton.addEventListener('click', refreshScan);
 elements.openAppButton.addEventListener('click', openApp);
+elements.loginButton.addEventListener('click', startGitHubLogin);
+elements.logoutButton.addEventListener('click', logout);
 elements.settingsButton.addEventListener('click', () => chrome.runtime.openOptionsPage());
 
 initializePopup();
