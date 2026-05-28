@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: code-analytics-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    healthCheckPath: /api/v1/health
+
+    envVars:
+      - key: LOG_LEVEL
+        value: INFO
+
+      - key: DEBUG
+        value: "false"
+
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: code-analytics-redis
+          property: connectionString
+
+      - key: MONGODB_URI
+        sync: false
+
+  - type: keyvalue
+    name: code-analytics-redis
+    plan: free
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
