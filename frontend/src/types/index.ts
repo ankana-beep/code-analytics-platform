@@ -131,6 +131,12 @@ export interface GitHubBranch {
   sha: string;
 }
 
+export interface WorkInProgressPoint {
+  week: string;
+  week_start: string;
+  open_pull_requests: number;
+}
+
 export interface ScanMetrics {
   scan_id: string;
   repository_path: string;

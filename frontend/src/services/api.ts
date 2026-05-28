@@ -3,7 +3,8 @@ import {
   GitHubBranch,
   GitHubRepository,
   Scan,
-  ScanStatus
+  ScanStatus,
+  WorkInProgressPoint
 } from '../types';
 
 const API_BASE = 'http://localhost:8000/api/v1';
@@ -60,6 +61,14 @@ export const api = {
   async getGitHubBranches(owner: string, repo: string) {
     const { data } = await axios.get<GitHubBranch[]>(
       `${API_BASE}/github/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches`
+    );
+    return data;
+  },
+
+  async getWorkInProgress(owner: string, repo: string, weeks = 8) {
+    const { data } = await axios.get<WorkInProgressPoint[]>(
+      `${API_BASE}/github/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/work-in-progress`,
+      { params: { weeks } }
     );
     return data;
   }

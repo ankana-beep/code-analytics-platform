@@ -268,13 +268,43 @@ function buildExecutiveNarrative(scan) {
 
 function renderSeveritySummary(issues = []) {
   const severity = countBy(issues, (issue) => issue.severity || 'info');
+  const total = issues.length || 0;
   const cards = [
-    ['error', 'Critical', severity.error || 0, 'Likely release blockers or production safety concerns.'],
-    ['warning', 'Warnings', severity.warning || 0, 'Maintainability, cleanup, or quality risks to plan.'],
-    ['info', 'Informational', severity.info || 0, 'Lower-risk signals useful for continuous improvement.']
+    ['error', 'Critical', severity.error || 0, 'Release blockers'],
+    ['warning', 'Warnings', severity.warning || 0, 'Quality risks'],
+    ['info', 'Info', severity.info || 0, 'Improvement notes']
   ];
 
   elements.severitySummary.replaceChildren();
+
+  const overview = document.createElement('div');
+  const overviewCopy = document.createElement('div');
+  const overviewLabel = document.createElement('span');
+  const overviewValue = document.createElement('strong');
+  const overviewText = document.createElement('p');
+  overview.className = 'severity-overview';
+  overviewLabel.textContent = 'Total signals';
+  overviewValue.textContent = formatNumber(total);
+  overviewText.textContent = total
+    ? 'Issues grouped by impact so the riskiest work is visible first.'
+    : 'No quality issues were reported for this scan.';
+  overviewCopy.append(overviewLabel, overviewValue, overviewText);
+  overview.append(overviewCopy);
+  elements.severitySummary.append(overview);
+
+  const strip = document.createElement('div');
+  strip.className = 'severity-strip';
+  cards.forEach(([tone, , value]) => {
+    const segment = document.createElement('span');
+    const share = total ? (Number(value || 0) / total) * 100 : 0;
+    segment.className = `severity-segment ${tone}`;
+    segment.style.width = `${Math.max(total && value ? 8 : 0, share)}%`;
+    strip.append(segment);
+  });
+  elements.severitySummary.append(strip);
+
+  const list = document.createElement('div');
+  list.className = 'severity-list';
   cards.forEach(([tone, label, value, text]) => {
     const card = document.createElement('article');
     const badge = document.createElement('span');
@@ -285,8 +315,9 @@ function renderSeveritySummary(issues = []) {
     count.textContent = formatNumber(value);
     copy.textContent = text;
     card.append(badge, count, copy);
-    elements.severitySummary.append(card);
+    list.append(card);
   });
+  elements.severitySummary.append(list);
 }
 
 function renderRiskCategories(categories = []) {
@@ -543,14 +574,45 @@ function renderMetrics(metrics = {}) {
     'complexity_metrics'
   ]);
 
-  Object.entries(metrics).filter(([key]) => !nestedMetricKeys.has(key)).forEach(([key, value]) => {
+  const preferredMetrics = [
+    ['total_files', 'Files', 'Breadth of repository content scanned.'],
+    ['total_lines_of_code', 'Total LOC', 'Overall implementation footprint.'],
+    ['code_lines', 'Code Lines', 'Executable/source lines reviewed.'],
+    ['total_folders', 'Folders', 'Repository structure and module spread.'],
+    ['supported_files', 'Supported Files', 'Files included in quality analysis.'],
+    ['total_size', 'Total Size', 'Approximate scanned footprint.'],
+    ['comment_lines', 'Comment Lines', 'Documentation and inline explanation signal.'],
+    ['blank_lines', 'Blank Lines', 'Formatting and spacing volume.']
+  ];
+
+  const rendered = new Set();
+  preferredMetrics.forEach(([key, labelText, helperText]) => {
+    if (!(key in metrics)) {
+      return;
+    }
     const tile = document.createElement('article');
     const label = document.createElement('span');
     const detail = document.createElement('strong');
+    const helper = document.createElement('p');
     tile.className = 'metric-tile';
+    label.textContent = labelText;
+    detail.textContent = formatValue(metrics[key]);
+    helper.textContent = helperText;
+    tile.append(label, detail, helper);
+    elements.metricsGrid.append(tile);
+    rendered.add(key);
+  });
+
+  Object.entries(metrics).filter(([key]) => !nestedMetricKeys.has(key) && !rendered.has(key)).slice(0, 4).forEach(([key, value]) => {
+    const tile = document.createElement('article');
+    const label = document.createElement('span');
+    const detail = document.createElement('strong');
+    const helper = document.createElement('p');
+    tile.className = 'metric-tile secondary';
     label.textContent = formatLabel(key);
     detail.textContent = formatValue(value);
-    tile.append(label, detail);
+    helper.textContent = 'Additional scan signal for technical review.';
+    tile.append(label, detail, helper);
     elements.metricsGrid.append(tile);
   });
 
@@ -719,14 +781,41 @@ function renderSuggestions(suggestions = []) {
 
 function renderDependencies(summary = {}) {
   elements.dependencyList.replaceChildren();
-  [
-    ['Has package.json', summary.has_package_json],
-    ['Dependencies', summary.dependencies],
-    ['Dev Dependencies', summary.dev_dependencies],
-    ['Possibly Unused', summary.possibly_unused],
-    ['Total Dependencies', summary.total_dependencies],
-    ['Total Dev Dependencies', summary.total_dev_dependencies]
-  ].forEach(([label, value]) => appendDefinition(elements.dependencyList, label, value));
+
+  const totalDependencies = Number(summary.total_dependencies || summary.dependencies || 0);
+  const totalDevDependencies = Number(summary.total_dev_dependencies || summary.dev_dependencies || 0);
+  const possiblyUnused = Number(summary.possibly_unused || 0);
+  const hasPackageJson = Boolean(summary.has_package_json);
+  const unusedRate = totalDependencies ? Math.round((possiblyUnused / totalDependencies) * 100) : 0;
+  const cards = [
+    ['Runtime Dependencies', totalDependencies, 'Packages required for the application to run.', 'dependency-card'],
+    ['Dev Dependencies', totalDevDependencies, 'Build, test, and tooling packages used by engineers.', 'dependency-card'],
+    ['Possibly Unused', possiblyUnused, `${unusedRate}% of runtime dependencies may need review.`, possiblyUnused ? 'dependency-card warning' : 'dependency-card good']
+  ];
+
+  cards.forEach(([labelText, value, helperText, className]) => {
+    const card = document.createElement('article');
+    const label = document.createElement('span');
+    const detail = document.createElement('strong');
+    const helper = document.createElement('p');
+    card.className = className;
+    label.textContent = labelText;
+    detail.textContent = formatNumber(value);
+    helper.textContent = helperText;
+    card.append(label, detail, helper);
+    elements.dependencyList.append(card);
+  });
+
+  const status = document.createElement('article');
+  const title = document.createElement('strong');
+  const text = document.createElement('p');
+  status.className = hasPackageJson ? 'dependency-status good' : 'dependency-status warning';
+  title.textContent = hasPackageJson ? 'Dependency manifest found' : 'Dependency manifest missing';
+  text.textContent = hasPackageJson
+    ? 'Package metadata is available, so dependency health can be tracked over time.'
+    : 'No package.json was detected, so dependency visibility may be incomplete.';
+  status.append(title, text);
+  elements.dependencyList.append(status);
 }
 
 function renderSummaryList(listElement, items, emptyText) {

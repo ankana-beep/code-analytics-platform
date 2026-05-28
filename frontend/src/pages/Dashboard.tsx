@@ -1,12 +1,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { api } from '../services/api';
-import { Scan } from '../types';
+import { Scan, WorkInProgressPoint } from '../types';
 
 const formatNumber = (value: number) => value.toLocaleString();
 const getScanId = (scan: Scan) => scan.id || scan._id || '';
 const PAGE_SIZE = 5;
+
+const parseGitHubRepository = (repositoryPath: string) => {
+  const match = repositoryPath.match(/^https:\/\/github\.com\/([^/]+)\/([^/.]+(?:[._-][^/.]+)*)(?:\.git)?\/?$/);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    owner: match[1],
+    repo: match[2]
+  };
+};
 
 export const Dashboard: React.FC = () => {
   const [scans, setScans] = useState<Scan[]>([]);
@@ -20,6 +32,9 @@ export const Dashboard: React.FC = () => {
   const [toDate, setToDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedScanIds, setSelectedScanIds] = useState<string[]>([]);
+  const [workInProgressData, setWorkInProgressData] = useState<WorkInProgressPoint[]>([]);
+  const [workInProgressError, setWorkInProgressError] = useState<string | null>(null);
+  const [isWorkInProgressLoading, setIsWorkInProgressLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -51,6 +66,61 @@ export const Dashboard: React.FC = () => {
     lines: Math.round((scan.metrics?.total_lines || 0) / 100),
     issues: scan.issues?.length || 0
   }));
+
+  const workInProgressRepository = useMemo(() => {
+    const githubScan = completedScans.find(scan => parseGitHubRepository(scan.repository_path));
+    return githubScan ? parseGitHubRepository(githubScan.repository_path) : null;
+  }, [completedScans]);
+
+  const workInProgressChartData = workInProgressData.map(point => {
+    const weekNumber = point.week.match(/Week\s+(\d+)/)?.[1];
+    const weekStart = new Date(`${point.week_start}T00:00:00`);
+
+    return {
+      ...point,
+      week_label: weekNumber ? `W${weekNumber}` : point.week,
+      week_date: weekStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    };
+  });
+
+  const latestWorkInProgress =
+    workInProgressChartData[workInProgressChartData.length - 1]?.open_pull_requests ?? 0;
+  const previousWorkInProgress =
+    workInProgressChartData[workInProgressChartData.length - 2]?.open_pull_requests ?? latestWorkInProgress;
+  const workInProgressDelta = latestWorkInProgress - previousWorkInProgress;
+  const peakWorkInProgress = workInProgressChartData.reduce(
+    (peak, point) => point.open_pull_requests > peak.open_pull_requests ? point : peak,
+    { open_pull_requests: 0, week_label: '-', week_date: '-' }
+  );
+  const workInProgressTrend =
+    workInProgressDelta === 0
+      ? 'No change from previous week'
+      : `${formatNumber(Math.abs(workInProgressDelta))} ${workInProgressDelta > 0 ? 'more' : 'fewer'} than previous week`;
+
+  useEffect(() => {
+    const loadWorkInProgress = async () => {
+      if (!workInProgressRepository) {
+        setWorkInProgressData([]);
+        setWorkInProgressError('Run a scan for a public GitHub repository to see open pull request trends.');
+        return;
+      }
+
+      setIsWorkInProgressLoading(true);
+      setWorkInProgressError(null);
+      try {
+        setWorkInProgressData(
+          await api.getWorkInProgress(workInProgressRepository.owner, workInProgressRepository.repo, 8)
+        );
+      } catch {
+        setWorkInProgressData([]);
+        setWorkInProgressError('Unable to load open pull request trends from GitHub right now.');
+      } finally {
+        setIsWorkInProgressLoading(false);
+      }
+    };
+
+    loadWorkInProgress();
+  }, [workInProgressRepository?.owner, workInProgressRepository?.repo]);
 
   const filteredScans = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -215,6 +285,98 @@ export const Dashboard: React.FC = () => {
             <Bar dataKey="issues" fill="var(--chart-green)" name="Issues" />
           </BarChart>
         </ResponsiveContainer>
+      </section>
+
+      <section className="panel chart-section work-in-progress-section">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Pull Requests</p>
+            <div className="chart-title-row">
+              <h2>Work In Progress</h2>
+              <span className="info-tooltip" tabIndex={0}>
+                i
+                <span className="tooltip-content">
+                  Open pull requests grouped by the week they were created.
+                </span>
+              </span>
+            </div>
+            <p>Open PRs by week, based on the latest scanned GitHub repository.</p>
+            {workInProgressRepository && (
+              <p className="wip-repository">{workInProgressRepository.owner}/{workInProgressRepository.repo}</p>
+            )}
+          </div>
+        </div>
+        {isWorkInProgressLoading && <p className="chart-empty-message">Loading pull request trends...</p>}
+        {!isWorkInProgressLoading && workInProgressError && (
+          <p className="chart-empty-message">{workInProgressError}</p>
+        )}
+        {!isWorkInProgressLoading && !workInProgressError && (
+          <>
+            <div className="wip-summary-grid">
+              <div>
+                <span>Current</span>
+                <strong>{formatNumber(latestWorkInProgress)}</strong>
+                <p>open PRs</p>
+              </div>
+              <div>
+                <span>Peak</span>
+                <strong>{formatNumber(peakWorkInProgress.open_pull_requests)}</strong>
+                <p>{peakWorkInProgress.week_label} starting {peakWorkInProgress.week_date}</p>
+              </div>
+              <div>
+                <span>Trend</span>
+                <strong className={workInProgressDelta > 0 ? 'trend-up' : workInProgressDelta < 0 ? 'trend-down' : ''}>
+                  {workInProgressDelta > 0 ? '+' : ''}{formatNumber(workInProgressDelta)}
+                </strong>
+                <p>{workInProgressTrend}</p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={workInProgressChartData} margin={{ top: 18, right: 20, left: 0, bottom: 8 }}>
+              <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="4 6" />
+              <XAxis
+                dataKey="week_label"
+                axisLine={false}
+                height={38}
+                interval={0}
+                tickLine={false}
+                tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+              />
+              <YAxis
+                allowDecimals={false}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
+                width={36}
+              />
+              <Tooltip
+                cursor={{ stroke: 'var(--border)', strokeWidth: 1 }}
+                formatter={(value) => [formatNumber(Number(value)), 'Open PRs']}
+                labelFormatter={(_, payload) => {
+                  const point = payload?.[0]?.payload;
+                  return point ? `${point.week} · starts ${point.week_date}` : 'Week';
+                }}
+                contentStyle={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  boxShadow: 'var(--shadow)',
+                  color: 'var(--text)'
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="open_pull_requests"
+                name="Open pull requests"
+                stroke="var(--primary)"
+                strokeWidth={3}
+                dot={{ r: 3.5, fill: 'var(--surface)', stroke: 'var(--primary)', strokeWidth: 2 }}
+                activeDot={{ r: 6, stroke: 'var(--surface)', strokeWidth: 2 }}
+              />
+              </LineChart>
+            </ResponsiveContainer>
+          </>
+        )}
       </section>
 
       <section className="panel recent-scans">
