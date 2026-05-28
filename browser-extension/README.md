@@ -11,7 +11,7 @@ Manifest V3 prototype for Chrome and Edge. It detects a GitHub repository tab, f
 
 ## Defaults
 
-- API base URL: `http://localhost:8000/api/v1`
+- API base URL: `https://code-analytics-api.onrender.com/api/v1`
 
 Settings are saved in `chrome.storage.sync`.
 
@@ -26,7 +26,7 @@ The extension stores the backend JWT in `chrome.storage.local` after GitHub logi
 
 ## Load In Chrome Or Edge
 
-1. Start the backend API at `http://localhost:8000`.
+1. Make sure the backend API is reachable at `https://code-analytics-api.onrender.com`.
 2. Open `chrome://extensions` or `edge://extensions`.
 3. Enable Developer mode.
 4. Click **Load unpacked**.
