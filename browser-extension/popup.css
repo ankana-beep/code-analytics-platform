@@ -375,7 +375,7 @@ select:disabled {
 
 .issue-strip {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
   gap: 8px;
   margin-top: 8px;
 }
@@ -415,7 +415,8 @@ select:disabled {
 }
 
 .compact-list li.info,
-.compact-list li.suggestion {
+.compact-list li.suggestion,
+.compact-list li.contributor {
   border-color: var(--good);
 }
 

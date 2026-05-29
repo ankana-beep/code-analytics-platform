@@ -1322,6 +1322,51 @@ button.severity-card:disabled {
   background: linear-gradient(180deg, var(--panel) 0%, var(--panel-subtle) 100%);
 }
 
+.ownership-panel {
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-subtle) 100%);
+}
+
+.ownership-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.ownership-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-solid);
+  padding: 12px;
+}
+
+.ownership-rank {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ownership-item strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.ownership-item p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .technology-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
