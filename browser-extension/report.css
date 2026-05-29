@@ -184,6 +184,136 @@ h2 {
   padding: 14px;
 }
 
+body[data-dashboard-mode="business"] [data-dashboard-mode="technical"],
+body[data-dashboard-mode="technical"] [data-dashboard-mode="business"] {
+  display: none;
+}
+
+.dashboard-control-panel {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.dashboard-mode-toggle,
+.signal-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.dashboard-mode-toggle {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 10px;
+}
+
+.dashboard-mode-toggle button,
+.signal-item,
+.metric-tile.drillable,
+.severity-card,
+.filter-summary button {
+  font: inherit;
+}
+
+.dashboard-mode-toggle button {
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 900;
+  text-align: left;
+  padding: 0 12px;
+}
+
+.dashboard-mode-toggle button.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.dashboard-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.signal-card {
+  min-width: 0;
+  padding: 14px;
+}
+
+.signal-card > span {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.signal-list {
+  display: grid;
+  gap: 8px;
+}
+
+.signal-item {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: var(--panel-solid);
+  color: var(--text);
+  padding: 10px;
+  text-align: left;
+}
+
+button.signal-item {
+  cursor: pointer;
+}
+
+button.signal-item:hover,
+.metric-tile.drillable:hover,
+.severity-card:hover:not(:disabled),
+.module-item[role="button"]:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.signal-item strong {
+  display: block;
+  line-height: 1.2;
+}
+
+.signal-item p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.signal-item.good {
+  border-left-color: var(--good);
+}
+
+.signal-item.warning {
+  border-left-color: var(--warning);
+}
+
+.signal-item.error {
+  border-left-color: var(--error);
+}
+
+.signal-item.info {
+  border-left-color: var(--accent);
+}
+
 .hero-dashboard {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
@@ -329,6 +459,19 @@ h2 {
   border-radius: 8px;
   background: var(--panel-subtle);
   padding: 12px;
+}
+
+button.severity-card,
+button.metric-tile {
+  width: 100%;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+button.severity-card:disabled {
+  cursor: default;
+  opacity: 0.66;
 }
 
 .risk-item-top {
@@ -773,6 +916,10 @@ h2 {
   border-left: 4px solid var(--accent);
 }
 
+.module-item[role="button"] {
+  cursor: pointer;
+}
+
 .module-item.high {
   border-left-color: var(--error);
 }
@@ -1004,6 +1151,10 @@ h2 {
   font-size: 20px;
 }
 
+.metric-tile.drillable {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
 .scroll-panel {
   max-height: 360px;
   overflow: auto;
@@ -1125,11 +1276,46 @@ td {
   text-align: center;
 }
 
+.filter-summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.filter-summary[hidden] {
+  display: none;
+}
+
+.filter-summary button {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-solid);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0 10px;
+}
+
 .empty-row {
   color: var(--muted);
 }
 
 @media (max-width: 980px) {
+  .dashboard-control-panel,
+  .dashboard-signal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-mode-toggle {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .hero-dashboard,
   .hero-card,
   .insight-grid,
@@ -1191,6 +1377,10 @@ td {
   .ai-summary-actions {
     width: 100%;
     flex-wrap: wrap;
+  }
+
+  .dashboard-mode-toggle {
+    grid-template-columns: 1fr;
   }
 
   .definition-grid,
