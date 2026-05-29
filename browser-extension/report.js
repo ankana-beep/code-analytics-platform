@@ -54,6 +54,7 @@ const elements = {
   fileTypeInsights: document.getElementById('fileTypeInsights'),
   contextList: document.getElementById('contextList'),
   metricsGrid: document.getElementById('metricsGrid'),
+  codeOwnershipList: document.getElementById('codeOwnershipList'),
   complexityList: document.getElementById('complexityList'),
   largestFilesBody: document.getElementById('largestFilesBody'),
   largestFilesPagination: document.getElementById('largestFilesPagination'),
@@ -363,11 +364,22 @@ function renderAlerts(scan) {
     });
   }
   if (debuggerCount) {
-    appendSignal(elements.alertList, 'error', `${formatNumber(debuggerCount)} debugger statements`, 'Remove production debugging statements before release.', {
-      kind: 'type',
-      value: 'debugger',
-      label: 'Debugger statements'
-    });
+    appendSignal(
+      elements.alertList,
+      'error',
+      `${formatNumber(debuggerCount)} debugger statements`,
+      'Remove production debugging statements before release.',
+      { kind: 'type', value: 'debugger', label: 'Debugger statements' }
+    );
+  }
+  if (Number(metrics.secrets_detected || 0)) {
+    appendSignal(
+      elements.alertList,
+      'error',
+      `${formatNumber(metrics.secrets_detected)} potential secrets`,
+      'Click to review files with secret findings.',
+      { kind: 'type', value: 'secret_detected', label: 'Potential secrets' }
+    );
   }
   if (largeFiles || longFunctions) {
     appendSignal(elements.alertList, 'warning', `${formatNumber(largeFiles + longFunctions)} complexity hotspots`, 'Large files and long functions may slow delivery.', {
@@ -883,12 +895,20 @@ function renderContext(scan) {
 function metricIssueFilter(key) {
   const filters = {
     debugger_statements: { kind: 'type', value: 'debugger', label: 'Debugger statements' },
+    secrets_detected: { kind: 'type', value: 'secret_detected', label: 'Potential secrets' },
     console_logs: { kind: 'type', value: 'console_log', label: 'Console log statements' },
     todo_count: { kind: 'type', value: 'todo_fixme', label: 'TODO/FIXME findings' },
     fixme_count: { kind: 'type', value: 'todo_fixme', label: 'TODO/FIXME findings' },
     commented_out_code: { kind: 'type', value: 'commented_out_code', label: 'Commented-out code' }
   };
   return filters[key] || null;
+}
+
+function formatMetricValue(key, value) {
+  if (key === 'code_duplication_percentage') {
+    return Number.isFinite(Number(value)) ? `${Number(value).toLocaleString()}%` : '--';
+  }
+  return formatValue(value);
 }
 
 function makeMetricTile(key, labelText, value, helperText, className = 'metric-tile') {
@@ -906,7 +926,7 @@ function makeMetricTile(key, labelText, value, helperText, className = 'metric-t
   }
   tile.className = filter ? `${className} drillable` : className;
   label.textContent = labelText;
-  detail.textContent = formatValue(value);
+  detail.textContent = formatMetricValue(key, value);
   helper.textContent = helperText;
   tile.append(label, detail, helper);
   return tile;
@@ -918,7 +938,8 @@ function renderMetrics(metrics = {}) {
     'file_types',
     'largest_files',
     'folder_statistics',
-    'complexity_metrics'
+    'complexity_metrics',
+    'code_ownership'
   ]);
 
   const preferredMetrics = [
@@ -927,6 +948,8 @@ function renderMetrics(metrics = {}) {
     ['code_lines', 'Code Lines', 'Executable/source lines reviewed.'],
     ['total_folders', 'Folders', 'Repository structure and module spread.'],
     ['supported_files', 'Supported Files', 'Files included in quality analysis.'],
+    ['code_duplication_percentage', 'Code Duplication', 'Estimated percentage of repeated normalized code lines.'],
+    ['secrets_detected', 'Secrets Detected', 'Potential hardcoded secrets found by pattern checks.'],
     ['total_size', 'Total Size', 'Approximate scanned footprint.'],
     ['comment_lines', 'Comment Lines', 'Documentation and inline explanation signal.'],
     ['blank_lines', 'Blank Lines', 'Formatting and spacing volume.']
@@ -951,6 +974,30 @@ function renderMetrics(metrics = {}) {
     empty.textContent = 'No metrics are available for this scan.';
     elements.metricsGrid.append(empty);
   }
+}
+
+function renderCodeOwnership(contributors = []) {
+  elements.codeOwnershipList.replaceChildren();
+  if (!Array.isArray(contributors) || !contributors.length) {
+    appendEmptyBlock(elements.codeOwnershipList, 'Contributor data is not available for this scan.');
+    return;
+  }
+
+  contributors.slice(0, 5).forEach((contributor, index) => {
+    const item = document.createElement('article');
+    const rank = document.createElement('span');
+    const body = document.createElement('div');
+    const name = document.createElement('strong');
+    const meta = document.createElement('p');
+    item.className = 'ownership-item';
+    rank.className = 'ownership-rank';
+    rank.textContent = String(index + 1).padStart(2, '0');
+    name.textContent = contributor.login || 'Unknown contributor';
+    meta.textContent = `${formatNumber(contributor.contributions || 0)} contributions`;
+    body.append(name, meta);
+    item.append(rank, body);
+    elements.codeOwnershipList.append(item);
+  });
 }
 
 function appendLargestFileRow(file) {
@@ -1256,6 +1303,7 @@ function renderReport(scan) {
   renderFileTypeChart(metrics.file_types || {});
   renderContext(scan);
   renderMetrics(metrics);
+  renderCodeOwnership(metrics.code_ownership || []);
   renderComplexityMetrics(metrics.complexity_metrics || {});
   renderLargestFiles(metrics.largest_files || []);
   renderFolderStatistics(metrics.folder_statistics || []);
