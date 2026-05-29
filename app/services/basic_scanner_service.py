@@ -117,6 +117,12 @@ IMPORT_RE = re.compile(
 FUNCTION_RE = re.compile(
     r"^\s*(?:pub\s+)?(?:export\s+)?(?:async\s+)?(?:fn\s+\w+|func\s+(?:\([^)]*\)\s*)?\w+|function\s+\w+|\w+\s*[:=]\s*(?:async\s*)?\([^)]*\)\s*=>|def\s+\w+|(?:public|private|protected|internal)?\s*(?:static\s+)?[\w<>\[\],:*&]+\s+\w+\s*\([^)]*\))"
 )
+SECRET_PATTERNS = [
+    ("aws_access_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
+    ("github_token", re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{36,255}\b")),
+    ("private_key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----")),
+    ("generic_secret", re.compile(r"(?i)\b(api[_-]?key|secret|password|token)\b\s*[:=]\s*['\"][^'\"\s]{12,}['\"]")),
+]
 
 
 class BasicScannerError(ValueError):
@@ -174,6 +180,52 @@ def _download_github_archive(
         for child in root.iterdir():
             shutil.move(str(child), destination / child.name)
         root.rmdir()
+
+
+def _github_api_json(path: str, access_token: str | None = None) -> Any:
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "code-analytics-platform",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if access_token:
+        headers["Authorization"] = f"Bearer {access_token}"
+
+    request = urllib.request.Request(f"https://api.github.com{path}", headers=headers)
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _fetch_repository_contributors(
+    owner: str,
+    repo: str,
+    access_token: str | None = None,
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    encoded_owner = urllib.parse.quote(owner, safe="")
+    encoded_repo = urllib.parse.quote(repo, safe="")
+    encoded_limit = urllib.parse.quote(str(limit), safe="")
+    try:
+        contributors = _github_api_json(
+            f"/repos/{encoded_owner}/{encoded_repo}/contributors?per_page={encoded_limit}",
+            access_token,
+        )
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        return []
+
+    if not isinstance(contributors, list):
+        return []
+
+    return [
+        {
+            "login": contributor.get("login") or "unknown",
+            "contributions": contributor.get("contributions") or 0,
+            "profile_url": contributor.get("html_url"),
+            "avatar_url": contributor.get("avatar_url"),
+        }
+        for contributor in contributors[:limit]
+        if isinstance(contributor, dict)
+    ]
 
 
 def _is_supported_file(path: Path, root: Path) -> bool:
@@ -245,7 +297,30 @@ def _detect_long_functions(lines: list[str], suffix: str, threshold: int = 50) -
     return issues
 
 
-def _analyze_file(path: Path, root: Path, declared_dependencies: set[str]) -> tuple[dict[str, Any], list[dict[str, Any]], Counter]:
+def _normalize_duplicate_line(line: str) -> str:
+    normalized = re.sub(r"\s+", " ", line.strip())
+    return normalized if len(normalized) >= 12 else ""
+
+
+def _detect_secret_lines(lines: list[str]) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    for index, line in enumerate(lines):
+        for secret_type, pattern in SECRET_PATTERNS:
+            if pattern.search(line):
+                findings.append({"line": index + 1, "secret_type": secret_type})
+                break
+    return findings
+
+
+def _duplication_percentage(line_counts: Counter) -> tuple[float, int, int]:
+    total_lines = sum(line_counts.values())
+    duplicated_lines = sum(count for count in line_counts.values() if count > 1)
+    if not total_lines:
+        return 0.0, 0, 0
+    return round((duplicated_lines / total_lines) * 100, 1), duplicated_lines, total_lines
+
+
+def _analyze_file(path: Path, root: Path, declared_dependencies: set[str]) -> tuple[dict[str, Any], list[dict[str, Any]], Counter, Counter]:
     relative = path.relative_to(root).as_posix()
     text = path.read_text(encoding="utf-8", errors="ignore")
     lines = text.splitlines()
@@ -254,6 +329,14 @@ def _analyze_file(path: Path, root: Path, declared_dependencies: set[str]) -> tu
     todo_lines = [i + 1 for i, line in enumerate(lines) if "TODO" in line.upper() or "FIXME" in line.upper()]
     console_lines = [i + 1 for i, line in enumerate(lines) if "console.log" in line]
     debugger_lines = [i + 1 for i, line in enumerate(lines) if re.search(r"\bdebugger\b", line)]
+    secret_lines = _detect_secret_lines(lines)
+    duplicate_lines = Counter(
+        normalized
+        for line in lines
+        if _line_kind(line, suffix) == "code"
+        for normalized in [_normalize_duplicate_line(line)]
+        if normalized
+    )
     blank_runs = 0
     current_blank_run = 0
     commented_out_lines = []
@@ -290,6 +373,14 @@ def _analyze_file(path: Path, root: Path, declared_dependencies: set[str]) -> tu
         issues.append({"type": "console_log", "severity": "warning", "file": relative, "line": line, "message": "console.log statement found."})
     for line in debugger_lines:
         issues.append({"type": "debugger", "severity": "error", "file": relative, "line": line, "message": "debugger statement found."})
+    for finding in secret_lines:
+        issues.append({
+            "type": "secret_detected",
+            "severity": "error",
+            "file": relative,
+            "line": finding["line"],
+            "message": f"Potential {finding['secret_type'].replace('_', ' ')} detected.",
+        })
     for line in todo_lines:
         issues.append({"type": "todo_fixme", "severity": "info", "file": relative, "line": line, "message": "TODO/FIXME marker found."})
     for line in commented_out_lines:
@@ -307,9 +398,10 @@ def _analyze_file(path: Path, root: Path, declared_dependencies: set[str]) -> tu
         "fixme_count": sum(1 for line in lines if "FIXME" in line.upper()),
         "console_logs": len(console_lines),
         "debugger_statements": len(debugger_lines),
+        "secrets_detected": len(secret_lines),
         "commented_out_code": len(commented_out_lines),
     }
-    return file_result, issues, imported
+    return file_result, issues, imported, duplicate_lines
 
 
 def _load_package_dependencies(root: Path) -> dict[str, Any]:
@@ -349,7 +441,10 @@ def _score_health(metrics: dict[str, Any], issues: list[dict[str, Any]], depende
     penalty += min(issue_counts["large_file"] * 6, 24)
     penalty += min(issue_counts["todo_fixme"] * 2, 18)
     penalty += min((issue_counts["console_log"] + issue_counts["debugger"]) * 4, 20)
+    penalty += min(issue_counts["secret_detected"] * 12, 36)
     penalty += min(issue_counts["commented_out_code"] * 3, 18)
+    if metrics.get("code_duplication_percentage", 0) > 20:
+        penalty += min(round((metrics["code_duplication_percentage"] - 20) * 0.5), 12)
     if blank_ratio > 0.25:
         penalty += min(round((blank_ratio - 0.25) * 100), 12)
     penalty += min(len(dependency_summary["possibly_unused"]) * 2, 16)
@@ -417,6 +512,7 @@ def _build_manager_report(
 
     release_score = 0
     release_score += issue_counts["debugger"] * 18
+    release_score += issue_counts["secret_detected"] * 24
     release_score += issue_counts["large_file"] * 4
     release_score += issue_counts["long_function"] * 5
     release_score += issue_counts["todo_fixme"] * 2
@@ -426,12 +522,13 @@ def _build_manager_report(
     if not has_ci:
         release_score += 10
 
-    security_score = issue_counts["debugger"] * 20 + len(sensitive_files) * 6
+    security_score = issue_counts["debugger"] * 20 + issue_counts["secret_detected"] * 35 + len(sensitive_files) * 6
     if sensitive_files and test_ratio < 0.1:
         security_score += 20
 
     maintenance_score = issue_counts["large_file"] * 10 + issue_counts["long_function"] * 8
     maintenance_score += issue_counts["commented_out_code"] * 3 + issue_counts["todo_fixme"] * 2
+    maintenance_score += round(metrics.get("code_duplication_percentage", 0) * 0.4)
 
     scalability_score = sum(1 for file in file_results if file["total_lines"] > 300) * 8
     scalability_score += max(0, metrics["total_lines"] - 10000) // 1000 * 4
@@ -555,6 +652,8 @@ def _build_manager_report(
     blocking_issues = []
     if issue_counts["debugger"]:
         blocking_issues.append(f"{issue_counts['debugger']} debugger statements")
+    if issue_counts["secret_detected"]:
+        blocking_issues.append(f"{issue_counts['secret_detected']} potential secrets")
     if issue_counts["large_file"]:
         blocking_issues.append(f"{issue_counts['large_file']} high-complexity files")
     if test_ratio < 0.05:
@@ -619,14 +718,16 @@ def run_basic_scan(
         file_results: list[dict[str, Any]] = []
         issues: list[dict[str, Any]] = []
         imported_dependencies: Counter = Counter()
+        duplicate_line_counts: Counter = Counter()
         file_types: Counter = Counter()
         folder_stats: dict[str, dict[str, Any]] = defaultdict(lambda: {"files": 0, "lines": 0})
 
         for path in supported_files:
-            file_result, file_issues, imports = _analyze_file(path, temp_dir, declared_dependencies)
+            file_result, file_issues, imports, duplicate_lines = _analyze_file(path, temp_dir, declared_dependencies)
             file_results.append(file_result)
             issues.extend(file_issues)
             imported_dependencies.update(imports)
+            duplicate_line_counts.update(duplicate_lines)
             file_types[file_result["extension"]] += 1
             parent = str(Path(file_result["path"]).parent)
             folder_stats[parent if parent != "." else "root"]["files"] += 1
@@ -637,6 +738,8 @@ def run_basic_scan(
             if imported_dependencies[name] == 0
         )
         dependency_summary["usage"] = dict(imported_dependencies)
+        duplication_percentage, duplicated_lines, analyzable_duplicate_lines = _duplication_percentage(duplicate_line_counts)
+        code_ownership = _fetch_repository_contributors(repository.owner, repository.repo, access_token)
 
         metrics = {
             "total_files": len(file_results),
@@ -659,6 +762,11 @@ def run_basic_scan(
             "commented_out_code": sum(item["commented_out_code"] for item in file_results),
             "console_logs": sum(item["console_logs"] for item in file_results),
             "debugger_statements": sum(item["debugger_statements"] for item in file_results),
+            "secrets_detected": sum(item["secrets_detected"] for item in file_results),
+            "code_duplication_percentage": duplication_percentage,
+            "duplicated_code_lines": duplicated_lines,
+            "duplication_analyzable_lines": analyzable_duplicate_lines,
+            "code_ownership": code_ownership,
             "total_size": sum(item["size"] for item in file_results),
             "scan_duration": round(time.time() - started, 2),
             "complexity_metrics": {
@@ -700,6 +808,10 @@ def run_basic_scan(
         suggestions = []
         if metrics["console_logs"] or metrics["debugger_statements"]:
             suggestions.append("Remove console.log and debugger statements before production.")
+        if metrics["secrets_detected"]:
+            suggestions.append("Rotate and remove potential secrets detected in the repository.")
+        if metrics["code_duplication_percentage"] >= 20:
+            suggestions.append("Review duplicated code paths and consolidate repeated logic.")
         if any(issue["type"] == "large_file" for issue in issues):
             suggestions.append("Refactor large files into smaller modules.")
         if metrics["todo_count"] or metrics["fixme_count"]:

@@ -70,9 +70,12 @@ const elements = {
   totalFolders: document.getElementById('totalFolders'),
   issueCount: document.getElementById('issueCount'),
   warningCount: document.getElementById('warningCount'),
+  duplicationPercent: document.getElementById('duplicationPercent'),
+  secretsDetected: document.getElementById('secretsDetected'),
   suggestionCount: document.getElementById('suggestionCount'),
   warningsList: document.getElementById('warningsList'),
-  suggestionsList: document.getElementById('suggestionsList')
+  suggestionsList: document.getElementById('suggestionsList'),
+  contributorsList: document.getElementById('contributorsList')
 };
 
 const AUTH_STORAGE_KEY = 'auth:accessToken';
@@ -427,9 +430,12 @@ function renderEmptyScan() {
   elements.totalFolders.textContent = '--';
   elements.issueCount.textContent = '--';
   elements.warningCount.textContent = '--';
+  elements.duplicationPercent.textContent = '--';
+  elements.secretsDetected.textContent = '--';
   elements.suggestionCount.textContent = '--';
   renderList(elements.warningsList, [], 'No warnings loaded.', 'empty-row', String);
   renderList(elements.suggestionsList, [], 'No suggestions loaded.', 'empty-row', String);
+  renderList(elements.contributorsList, [], 'No contributors loaded.', 'empty-row', String);
   setBusy(state.busy);
 }
 
@@ -450,6 +456,10 @@ function renderScan(scan) {
   elements.totalFolders.textContent = formatNumber(metrics.total_folders);
   elements.issueCount.textContent = formatNumber(issues.length);
   elements.warningCount.textContent = formatNumber(warnings.length);
+  elements.duplicationPercent.textContent = Number.isFinite(Number(metrics.code_duplication_percentage))
+    ? `${Number(metrics.code_duplication_percentage).toLocaleString()}%`
+    : '--';
+  elements.secretsDetected.textContent = formatNumber(metrics.secrets_detected);
   elements.suggestionCount.textContent = formatNumber(suggestions.length);
 
   renderList(
@@ -465,6 +475,13 @@ function renderScan(scan) {
     'No suggestions found.',
     'suggestion',
     (suggestion) => suggestion
+  );
+  renderList(
+    elements.contributorsList,
+    Array.isArray(metrics.code_ownership) ? metrics.code_ownership : [],
+    'No contributors available.',
+    'contributor',
+    (contributor) => `${contributor.login || 'Unknown'} - ${formatNumber(contributor.contributions || 0)} contributions`
   );
 
   setBusy(state.busy);
