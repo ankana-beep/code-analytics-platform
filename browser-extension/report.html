@@ -6,7 +6,7 @@
     <title>Code Analytics Report</title>
     <link rel="stylesheet" href="report.css">
   </head>
-  <body>
+  <body data-dashboard-mode="business">
     <main class="report-shell">
       <section class="landing-hero" aria-label="Code analytics introduction">
         <div class="star-field" aria-hidden="true"></div>
@@ -68,7 +68,24 @@
           <p id="messageText"></p>
         </section>
 
-      <section class="hero-dashboard">
+      <section class="dashboard-control-panel">
+        <div class="dashboard-mode-toggle" aria-label="Dashboard mode">
+          <button type="button" data-dashboard-mode-option="business" class="active" aria-pressed="true">Business View</button>
+          <button type="button" data-dashboard-mode-option="technical" aria-pressed="false">Technical View</button>
+        </div>
+        <div class="dashboard-signal-grid">
+          <article class="signal-card">
+            <span>Trends</span>
+            <div id="trendList" class="signal-list"></div>
+          </article>
+          <article class="signal-card">
+            <span>Alerts</span>
+            <div id="alertList" class="signal-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="hero-dashboard" data-dashboard-mode="business">
         <article class="hero-card">
           <div>
             <p class="eyebrow">Overall Position</p>
@@ -100,7 +117,7 @@
         </aside>
       </section>
 
-      <section class="insight-grid">
+      <section class="insight-grid" data-dashboard-mode="business">
         <article class="panel">
           <div class="panel-header">
             <div>
@@ -122,7 +139,7 @@
         </article>
       </section>
 
-      <section class="insight-grid">
+      <section class="insight-grid" data-dashboard-mode="business">
         <article class="panel">
           <div class="panel-header">
             <div>
@@ -144,7 +161,7 @@
         </article>
       </section>
 
-      <section class="panel ai-summary-panel">
+      <section class="panel ai-summary-panel" data-dashboard-mode="business">
         <div class="panel-header">
           <div>
             <p class="eyebrow">AI Summary</p>
@@ -183,7 +200,7 @@
         <p id="aiConfidenceNote" class="ai-confidence-note">This is optional and only runs after you click the button.</p>
       </section>
 
-      <section class="insight-grid">
+      <section class="insight-grid" data-dashboard-mode="business">
         <article class="panel">
           <div class="panel-header">
             <div>
@@ -205,7 +222,7 @@
         </article>
       </section>
 
-      <section class="details-grid operations-grid">
+      <section class="details-grid operations-grid" data-dashboard-mode="technical">
         <article class="panel">
           <div class="panel-header">
             <div>
@@ -227,7 +244,7 @@
         </article>
       </section>
 
-      <section class="panel technology-panel">
+      <section class="panel technology-panel" data-dashboard-mode="technical">
         <div class="panel-header">
           <div>
             <p class="eyebrow">Technology Mix</p>
@@ -250,7 +267,7 @@
         </div>
       </section>
 
-      <section class="details-grid">
+      <section class="details-grid" data-dashboard-mode="technical">
         <article class="panel">
           <div class="panel-header">
             <div>
@@ -272,7 +289,7 @@
         </article>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-dashboard-mode="technical">
         <div class="panel-header">
           <div>
             <p class="eyebrow">File Hotspots</p>
@@ -301,7 +318,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-dashboard-mode="technical">
         <div class="panel-header">
           <div>
             <p class="eyebrow">Folder Concentration</p>
@@ -329,11 +346,15 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-dashboard-mode="technical">
         <div class="panel-header">
           <div>
             <p class="eyebrow">Issue Drill-Down</p>
             <h2>Quality Findings</h2>
+          </div>
+          <div id="issueFilterSummary" class="filter-summary" hidden>
+            <span id="issueFilterLabel"></span>
+            <button id="clearIssueFilterButton" type="button">Clear</button>
           </div>
         </div>
         <div class="table-wrap">
