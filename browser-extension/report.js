@@ -1,14 +1,27 @@
 const DEFAULT_SETTINGS = {
   apiBaseUrl: 'https://code-analytics-api.onrender.com/api/v1'
+  // apiBaseUrl: 'http://localhost:8000/api/v1'
 };
 
 const LARGEST_FILES_PAGE_SIZE = 10;
 const FOLDER_STATS_PAGE_SIZE = 10;
 const ISSUES_PAGE_SIZE = 10;
 const REPORT_THEME_STORAGE_KEY = 'reportTheme';
+const DASHBOARD_MODE_STORAGE_KEY = 'dashboardMode';
+const SPLASH_DURATION_MS = 3200;
+const REDUCED_MOTION_SPLASH_DURATION_MS = 800;
 const params = new URLSearchParams(window.location.search);
 
 const elements = {
+  codeSplash: document.getElementById('codeSplash'),
+  heroBrand: document.getElementById('heroBrand'),
+  heroTitlePrefix: document.getElementById('heroTitlePrefix'),
+  heroTitleMain: document.getElementById('heroTitleMain'),
+  heroTitleSuffix: document.getElementById('heroTitleSuffix'),
+  heroSubtitle: document.getElementById('heroSubtitle'),
+  heroTopCta: document.getElementById('heroTopCta'),
+  heroPrimaryCta: document.getElementById('heroPrimaryCta'),
+  heroSecondaryCta: document.getElementById('heroSecondaryCta'),
   reportTitle: document.getElementById('reportTitle'),
   reportSubtitle: document.getElementById('reportSubtitle'),
   githubLink: document.getElementById('githubLink'),
@@ -16,6 +29,9 @@ const elements = {
   messagePanel: document.getElementById('messagePanel'),
   messageTitle: document.getElementById('messageTitle'),
   messageText: document.getElementById('messageText'),
+  dashboardModeButtons: Array.from(document.querySelectorAll('[data-dashboard-mode-option]')),
+  alertList: document.getElementById('alertList'),
+  trendList: document.getElementById('trendList'),
   executiveHeadline: document.getElementById('executiveHeadline'),
   executiveNarrative: document.getElementById('executiveNarrative'),
   healthGauge: document.getElementById('healthGauge'),
@@ -54,6 +70,9 @@ const elements = {
   issuesPageInfo: document.getElementById('issuesPageInfo'),
   issuesPrevButton: document.getElementById('issuesPrevButton'),
   issuesNextButton: document.getElementById('issuesNextButton'),
+  issueFilterSummary: document.getElementById('issueFilterSummary'),
+  issueFilterLabel: document.getElementById('issueFilterLabel'),
+  clearIssueFilterButton: document.getElementById('clearIssueFilterButton'),
   suggestionsList: document.getElementById('suggestionsList'),
   dependencyList: document.getElementById('dependencyList'),
   aiSummaryBadge: document.getElementById('aiSummaryBadge'),
@@ -68,11 +87,32 @@ const elements = {
 };
 
 let currentScanId = '';
+let currentScan = null;
+let activeIssueFilter = null;
 const paginatedSections = {
   largestFiles: { items: [], page: 1 },
   folderStats: { items: [], page: 1 },
   issues: { items: [], page: 1 }
 };
+
+function dismissCodeSplash() {
+  if (!elements.codeSplash) {
+    document.body.classList.remove('splash-active');
+    return;
+  }
+
+  elements.codeSplash.classList.add('is-hiding');
+  document.body.classList.remove('splash-active');
+  window.setTimeout(() => {
+    elements.codeSplash.hidden = true;
+  }, 620);
+}
+
+function initializeCodeSplash() {
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const delay = prefersReducedMotion ? REDUCED_MOTION_SPLASH_DURATION_MS : SPLASH_DURATION_MS;
+  window.setTimeout(dismissCodeSplash, delay);
+}
 
 function applyReportTheme(theme) {
   const nextTheme = theme === 'light' ? 'light' : 'dark';
@@ -101,6 +141,38 @@ function initializeReportTheme() {
         localStorage.setItem(REPORT_THEME_STORAGE_KEY, nextTheme);
       } catch {
         // Theme persistence is optional; the visual toggle should still work.
+      }
+    });
+  });
+}
+
+function applyDashboardMode(mode) {
+  const nextMode = mode === 'technical' ? 'technical' : 'business';
+  document.body.dataset.dashboardMode = nextMode;
+  elements.dashboardModeButtons.forEach((button) => {
+    const isActive = button.dataset.dashboardModeOption === nextMode;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  });
+}
+
+function initializeDashboardMode() {
+  let storedMode = 'business';
+  try {
+    storedMode = localStorage.getItem(DASHBOARD_MODE_STORAGE_KEY) || 'business';
+  } catch {
+    storedMode = 'business';
+  }
+  applyDashboardMode(storedMode);
+
+  elements.dashboardModeButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const nextMode = button.dataset.dashboardModeOption === 'technical' ? 'technical' : 'business';
+      applyDashboardMode(nextMode);
+      try {
+        localStorage.setItem(DASHBOARD_MODE_STORAGE_KEY, nextMode);
+      } catch {
+        // Mode persistence is optional; the controls should still work.
       }
     });
   });
@@ -252,6 +324,164 @@ async function apiFetch(apiBaseUrl, path, options = {}) {
   return body;
 }
 
+function appendSignal(container, tone, title, text, filter = null) {
+  const item = document.createElement(filter ? 'button' : 'article');
+  const label = document.createElement('strong');
+  const copy = document.createElement('p');
+  item.className = `signal-item ${tone}`;
+  if (filter) {
+    item.type = 'button';
+    item.addEventListener('click', () => {
+      setIssueFilter(filter);
+      applyDashboardMode('technical');
+      document.getElementById('issuesBody')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+  label.textContent = title;
+  copy.textContent = text;
+  item.append(label, copy);
+  container.append(item);
+}
+
+function renderAlerts(scan) {
+  const issues = Array.isArray(scan.issues) ? scan.issues : [];
+  const metrics = scan.metrics || {};
+  const readiness = scan.manager_report?.release_readiness || {};
+  const severity = countBy(issues, (issue) => issue.severity || 'info');
+  const issueTypes = countBy(issues, (issue) => issue.type || 'issue');
+  const largeFiles = Number(issueTypes.large_file || 0);
+  const longFunctions = Number(issueTypes.long_function || 0);
+  const debuggerCount = Number(issueTypes.debugger || 0);
+
+  elements.alertList.replaceChildren();
+
+  if (severity.error) {
+    appendSignal(elements.alertList, 'error', `${formatNumber(severity.error)} critical findings`, 'Click to drill into critical files and lines.', {
+      kind: 'severity',
+      value: 'error',
+      label: 'Critical findings'
+    });
+  }
+  if (debuggerCount) {
+    appendSignal(elements.alertList, 'error', `${formatNumber(debuggerCount)} debugger statements`, 'Remove production debugging statements before release.', {
+      kind: 'type',
+      value: 'debugger',
+      label: 'Debugger statements'
+    });
+  }
+  if (largeFiles || longFunctions) {
+    appendSignal(elements.alertList, 'warning', `${formatNumber(largeFiles + longFunctions)} complexity hotspots`, 'Large files and long functions may slow delivery.', {
+      kind: 'types',
+      value: ['large_file', 'long_function'],
+      label: 'Complexity hotspots'
+    });
+  }
+  if (Number(readiness.percentage) < 60) {
+    appendSignal(elements.alertList, 'error', readiness.status || 'Release not ready', `${formatNumber(readiness.percentage)}% readiness needs attention.`);
+  }
+  if (Number(metrics.test_metrics?.test_coverage_percentage || 0) < 5 && Number(metrics.total_files || 0) > 0) {
+    appendSignal(elements.alertList, 'warning', 'Low test signal', 'Few test files were detected for this repository.');
+  }
+
+  if (!elements.alertList.children.length) {
+    appendSignal(elements.alertList, 'good', 'No critical alerts', 'No release-blocking scanner alerts were detected.');
+  }
+}
+
+function getPreviousComparableScan(scan, history = []) {
+  const currentCreated = new Date(scan.created_at || 0).getTime();
+  return history
+    .filter((item) => item.id !== scan.id && item._id !== scan._id)
+    .filter((item) => item.repository_path === scan.repository_path || item.repository_name === scan.repository_name)
+    .filter((item) => (item.branch || 'main') === (scan.branch || 'main'))
+    .filter((item) => !currentCreated || new Date(item.created_at || 0).getTime() <= currentCreated)
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))[0];
+}
+
+function trendText(currentValue, previousValue, suffix = '') {
+  if (currentValue === null || currentValue === undefined || previousValue === null || previousValue === undefined) {
+    return 'Baseline';
+  }
+  const current = Number(currentValue);
+  const previous = Number(previousValue);
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) {
+    return 'Baseline';
+  }
+  const delta = current - previous;
+  if (!delta) {
+    return `No change at ${formatNumber(current)}${suffix}`;
+  }
+  const direction = delta > 0 ? 'up' : 'down';
+  return `${direction} ${formatNumber(Math.abs(delta))}${suffix} from previous scan`;
+}
+
+function renderTrends(scan, history = []) {
+  const previous = getPreviousComparableScan(scan, history);
+  const currentIssues = Array.isArray(scan.issues) ? scan.issues.length : 0;
+  const previousIssues = previous && Array.isArray(previous.issues) ? previous.issues.length : null;
+  const currentReadiness = scan.manager_report?.release_readiness?.percentage;
+  const previousReadiness = previous?.manager_report?.release_readiness?.percentage;
+
+  elements.trendList.replaceChildren();
+
+  if (!previous) {
+    appendSignal(elements.trendList, 'info', 'Baseline scan', 'Run another scan for this repo and branch to show historical movement.');
+    return;
+  }
+
+  const scoreTone = scan.health_score === null || scan.health_score === undefined || previous.health_score === null || previous.health_score === undefined
+    ? 'info'
+    : Number(scan.health_score) >= Number(previous.health_score) ? 'good' : 'warning';
+  const issueTone = previousIssues === null || previousIssues === undefined
+    ? 'info'
+    : currentIssues <= previousIssues ? 'good' : 'warning';
+  const readinessTone = currentReadiness === null || currentReadiness === undefined || previousReadiness === null || previousReadiness === undefined
+    ? 'info'
+    : Number(currentReadiness) >= Number(previousReadiness) ? 'good' : 'warning';
+
+  appendSignal(elements.trendList, scoreTone, 'Health score', trendText(scan.health_score, previous.health_score, '%'));
+  appendSignal(elements.trendList, issueTone, 'Quality signals', trendText(currentIssues, previousIssues));
+  appendSignal(elements.trendList, readinessTone, 'Release readiness', trendText(currentReadiness, previousReadiness, '%'));
+}
+
+async function loadTrendHistory(apiBaseUrl, scan) {
+  try {
+    const scans = await apiFetch(apiBaseUrl, '/basic-scans?limit=100');
+    renderTrends(scan, Array.isArray(scans) ? scans : []);
+  } catch {
+    renderTrends(scan, []);
+  }
+}
+
+function issueMatchesFilter(issue, filter) {
+  if (!filter) {
+    return true;
+  }
+  if (filter.kind === 'severity') {
+    return (issue.severity || 'info') === filter.value;
+  }
+  if (filter.kind === 'type') {
+    return (issue.type || '') === filter.value;
+  }
+  if (filter.kind === 'types') {
+    return filter.value.includes(issue.type || '');
+  }
+  if (filter.kind === 'module') {
+    return String(issue.file || '').startsWith(filter.value);
+  }
+  return true;
+}
+
+function setIssueFilter(filter) {
+  activeIssueFilter = filter;
+  renderIssues(currentScan?.issues || []);
+}
+
+function clearIssueFilter() {
+  activeIssueFilter = null;
+  renderIssues(currentScan?.issues || []);
+}
+
 function renderSummary(scan) {
   const metrics = scan.metrics || {};
   const readiness = scan.manager_report?.release_readiness || {};
@@ -260,6 +490,7 @@ function renderSummary(scan) {
   const healthScore = clampPercent(scan.health_score);
   const readinessPercentage = Number.isFinite(Number(readiness.percentage)) ? `${readiness.percentage}%` : 'Release readiness pending';
 
+  renderHeroSummary(scan, repoName, branch);
   elements.reportTitle.textContent = repoName;
   elements.reportSubtitle.textContent = branch ? `Branch: ${branch}` : 'Executive scan from the browser extension.';
   elements.healthGauge.style.setProperty('--score-percent', `${healthScore}%`);
@@ -272,6 +503,36 @@ function renderSummary(scan) {
   elements.totalLoc.textContent = `${formatNumber(metrics.code_lines || metrics.total_lines_of_code)} LOC`;
   elements.executiveHeadline.textContent = buildExecutiveHeadline(scan);
   elements.executiveNarrative.textContent = buildExecutiveNarrative(scan);
+}
+
+function renderHeroSummary(scan, repoName, branch) {
+  const metrics = scan.metrics || {};
+  const issues = Array.isArray(scan.issues) ? scan.issues : [];
+  const score = Number(scan.health_score);
+  const status = scan.health_status || 'Not scored';
+  const branchLabel = branch ? `${branch} branch` : 'selected branch';
+  const fileCount = formatNumber(metrics.total_files);
+  const issueCount = formatNumber(issues.length);
+
+  elements.heroBrand.textContent = repoName;
+  elements.heroTitlePrefix.textContent = Number.isFinite(score) ? `${scan.health_score}%` : 'Live';
+  elements.heroTitleMain.textContent = 'CODE HEALTH';
+  elements.heroTitleSuffix.textContent = status;
+  elements.heroSubtitle.textContent = `Browser extension report for ${branchLabel}: ${fileCount} files reviewed with ${issueCount} quality signals.`;
+  elements.heroTopCta.textContent = 'View Report';
+  elements.heroPrimaryCta.textContent = 'View analytics';
+  elements.heroSecondaryCta.textContent = 'Open AI summary';
+}
+
+function renderHeroMessage(prefix, main, suffix, subtitle) {
+  elements.heroBrand.textContent = 'Code Analytics';
+  elements.heroTitlePrefix.textContent = prefix;
+  elements.heroTitleMain.textContent = main;
+  elements.heroTitleSuffix.textContent = suffix;
+  elements.heroSubtitle.textContent = subtitle;
+  elements.heroTopCta.textContent = 'View Report';
+  elements.heroPrimaryCta.textContent = 'View analytics';
+  elements.heroSecondaryCta.textContent = 'Open AI summary';
 }
 
 function buildExecutiveHeadline(scan) {
@@ -340,11 +601,18 @@ function renderSeveritySummary(issues = []) {
   const list = document.createElement('div');
   list.className = 'severity-list';
   cards.forEach(([tone, label, value, text]) => {
-    const card = document.createElement('article');
+    const card = document.createElement('button');
     const badge = document.createElement('span');
     const count = document.createElement('strong');
     const copy = document.createElement('p');
+    card.type = 'button';
     card.className = `severity-card ${tone}`;
+    card.disabled = !value;
+    card.addEventListener('click', () => {
+      setIssueFilter({ kind: 'severity', value: tone, label: `${label} findings` });
+      applyDashboardMode('technical');
+      document.getElementById('issuesBody')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     badge.textContent = label;
     count.textContent = formatNumber(value);
     copy.textContent = text;
@@ -468,9 +736,22 @@ function renderRiskModules(modules = []) {
     const meta = document.createElement('span');
     const reason = document.createElement('p');
     item.className = `module-item ${risk}`;
+    item.tabIndex = 0;
+    item.setAttribute('role', 'button');
     title.textContent = module.module || 'Repository module';
     meta.textContent = `${risk} risk - ${formatNumber(module.issue_count || 0)} issues - ${formatNumber(module.lines || 0)} lines`;
     reason.textContent = module.reason || 'Review this area first because it concentrates risk signals.';
+    item.addEventListener('click', () => {
+      setIssueFilter({ kind: 'module', value: module.module || '', label: `${module.module || 'Module'} findings` });
+      applyDashboardMode('technical');
+      document.getElementById('issuesBody')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        item.click();
+      }
+    });
     item.append(title, meta, reason);
     elements.riskModulesList.append(item);
   });
@@ -599,6 +880,38 @@ function renderContext(scan) {
   }
 }
 
+function metricIssueFilter(key) {
+  const filters = {
+    debugger_statements: { kind: 'type', value: 'debugger', label: 'Debugger statements' },
+    console_logs: { kind: 'type', value: 'console_log', label: 'Console log statements' },
+    todo_count: { kind: 'type', value: 'todo_fixme', label: 'TODO/FIXME findings' },
+    fixme_count: { kind: 'type', value: 'todo_fixme', label: 'TODO/FIXME findings' },
+    commented_out_code: { kind: 'type', value: 'commented_out_code', label: 'Commented-out code' }
+  };
+  return filters[key] || null;
+}
+
+function makeMetricTile(key, labelText, value, helperText, className = 'metric-tile') {
+  const filter = metricIssueFilter(key);
+  const tile = document.createElement(filter ? 'button' : 'article');
+  const label = document.createElement('span');
+  const detail = document.createElement('strong');
+  const helper = document.createElement('p');
+  if (filter) {
+    tile.type = 'button';
+    tile.addEventListener('click', () => {
+      setIssueFilter(filter);
+      document.getElementById('issuesBody')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+  tile.className = filter ? `${className} drillable` : className;
+  label.textContent = labelText;
+  detail.textContent = formatValue(value);
+  helper.textContent = helperText;
+  tile.append(label, detail, helper);
+  return tile;
+}
+
 function renderMetrics(metrics = {}) {
   elements.metricsGrid.replaceChildren();
   const nestedMetricKeys = new Set([
@@ -624,30 +937,12 @@ function renderMetrics(metrics = {}) {
     if (!(key in metrics)) {
       return;
     }
-    const tile = document.createElement('article');
-    const label = document.createElement('span');
-    const detail = document.createElement('strong');
-    const helper = document.createElement('p');
-    tile.className = 'metric-tile';
-    label.textContent = labelText;
-    detail.textContent = formatValue(metrics[key]);
-    helper.textContent = helperText;
-    tile.append(label, detail, helper);
-    elements.metricsGrid.append(tile);
+    elements.metricsGrid.append(makeMetricTile(key, labelText, metrics[key], helperText));
     rendered.add(key);
   });
 
   Object.entries(metrics).filter(([key]) => !nestedMetricKeys.has(key) && !rendered.has(key)).slice(0, 4).forEach(([key, value]) => {
-    const tile = document.createElement('article');
-    const label = document.createElement('span');
-    const detail = document.createElement('strong');
-    const helper = document.createElement('p');
-    tile.className = 'metric-tile secondary';
-    label.textContent = formatLabel(key);
-    detail.textContent = formatValue(value);
-    helper.textContent = 'Additional scan signal for technical review.';
-    tile.append(label, detail, helper);
-    elements.metricsGrid.append(tile);
+    elements.metricsGrid.append(makeMetricTile(key, formatLabel(key), value, 'Additional scan signal for technical review.', 'metric-tile secondary'));
   });
 
   if (!Object.keys(metrics).length) {
@@ -792,7 +1087,15 @@ function renderIssuePage() {
 }
 
 function renderIssues(issues = []) {
-  setPaginatedItems('issues', issues, renderIssuePage);
+  const allIssues = Array.isArray(issues) ? issues : [];
+  const filteredIssues = allIssues.filter((issue) => issueMatchesFilter(issue, activeIssueFilter));
+  if (activeIssueFilter) {
+    elements.issueFilterLabel.textContent = `${activeIssueFilter.label}: ${formatNumber(filteredIssues.length)} of ${formatNumber(allIssues.length)}`;
+    elements.issueFilterSummary.hidden = false;
+  } else {
+    elements.issueFilterSummary.hidden = true;
+  }
+  setPaginatedItems('issues', filteredIssues, renderIssuePage);
 }
 
 function renderSuggestions(suggestions = []) {
@@ -921,7 +1224,7 @@ function renderAISummary(summaryResponse) {
   renderSummaryList(elements.aiStrengthsList, summary.key_strengths || [], 'No strengths highlighted.');
   renderSummaryList(elements.aiConcernsList, summary.priority_concerns || [], 'No concerns highlighted.');
   renderSummaryList(elements.aiQuickWinsList, summary.quick_wins || [], 'No quick wins highlighted.');
-  elements.aiConfidenceNote.textContent = summary.confidence_note || 'This summary is based on static scan signals.';
+  elements.aiConfidenceNote.textContent = summary.confidence_note || 'This summary is based on the saved repository scan signals.';
   setAISummaryButtonState(false);
 }
 
@@ -938,9 +1241,13 @@ function renderAISummaryError(message) {
 }
 
 function renderReport(scan) {
+  currentScan = scan;
+  activeIssueFilter = null;
   const metrics = scan.metrics || {};
   const managerReport = scan.manager_report || {};
   renderSummary(scan);
+  renderAlerts(scan);
+  renderTrends(scan, []);
   renderSeveritySummary(scan.issues || []);
   renderRiskCategories(managerReport.risk_categories || []);
   renderReadiness(managerReport.release_readiness || {});
@@ -988,6 +1295,12 @@ async function initializeReport() {
 
   if (!scanId) {
     showMessage('No scan selected', 'Open this report from the extension after analyzing a repository.');
+    renderHeroMessage(
+      'No scan',
+      'CODE HEALTH',
+      'selected',
+      'Open this page from the Code Analytics browser extension after running a repository scan.'
+    );
     elements.reportSubtitle.textContent = 'No scan id was provided.';
     return;
   }
@@ -998,8 +1311,15 @@ async function initializeReport() {
     currentScanId = scanId;
     renderReport(scan);
     renderAISummaryIdle();
+    loadTrendHistory(settings.apiBaseUrl, scan);
   } catch (error) {
     showMessage('Unable to load report', error.message);
+    renderHeroMessage(
+      'Report',
+      'LOAD',
+      'blocked',
+      'The browser extension could not load this repository scan from the configured API.'
+    );
     elements.reportSubtitle.textContent = 'The extension report could not load scan metrics.';
     renderAISummaryError('Load the scan report first, then the AI summary can be requested.');
   }
@@ -1024,6 +1344,9 @@ elements.issuesPrevButton.addEventListener('click', () => {
 elements.issuesNextButton.addEventListener('click', () => {
   bindPagination('issues', 1, renderIssuePage);
 });
+elements.clearIssueFilterButton.addEventListener('click', clearIssueFilter);
 initializeReportTheme();
+initializeDashboardMode();
+initializeCodeSplash();
 renderAISummaryIdle();
 initializeReport();

@@ -6,29 +6,142 @@
     <title>Code Analytics Report</title>
     <link rel="stylesheet" href="report.css">
   </head>
-  <body>
+  <body class="splash-active" data-dashboard-mode="business">
+    <section id="codeSplash" class="code-splash" aria-label="Preparing code analytics report">
+      <div class="code-board" aria-hidden="true">
+        <div class="code-particle token-one">
+          <span>def scan_repo(path):</span>
+        </div>
+        <div class="code-particle token-two">
+          <span>FastAPI · Django · Redis</span>
+        </div>
+        <div class="code-particle token-three">
+          <span>SELECT * FROM repositories;</span>
+        </div>
+        <div class="code-particle token-four">
+          <span>go func() { analyze() }</span>
+        </div>
+        <div class="code-particle token-five">
+          <span>class ReportService:</span>
+        </div>
+        <div class="code-particle token-six">
+          <span>docker compose up api</span>
+        </div>
+        <div class="code-particle token-seven">
+          <span>std::vector&lt;Issue&gt; findings;</span>
+        </div>
+        <div class="code-particle token-eight">
+          <span>await cache.get("health_score")</span>
+        </div>
+        <div class="code-particle token-nine">
+          <span>{ JSON }</span>
+        </div>
+        <div class="code-particle token-ten">
+          <span>git diff --stat</span>
+        </div>
+        <div class="code-particle tech-card tech-one code-card">
+          <span class="tech-label">Python</span>
+          <span class="code-lines">
+            <i></i><i></i><i></i><i></i>
+          </span>
+        </div>
+        <div class="code-particle tech-card tech-two code-card">
+          <span class="tech-label">Database</span>
+          <span class="code-stack">
+            <i>Postgres</i><i>MongoDB</i><i>Redis</i>
+          </span>
+        </div>
+        <div class="code-particle tech-card tech-three code-card">
+          <span class="tech-label">C / C++ / Go</span>
+          <span class="code-brackets">&lt;/&gt;</span>
+        </div>
+      </div>
+      <div class="splash-vignette" aria-hidden="true"></div>
+      <div class="splash-status">
+        <span class="splash-kicker">Code Analytics</span>
+        <strong>Solving repository signals</strong>
+        <span class="splash-loader" aria-hidden="true"></span>
+      </div>
+    </section>
     <main class="report-shell">
-      <header class="report-header">
-        <div>
-          <p class="eyebrow">Executive Code Health Report</p>
-          <h1 id="reportTitle">Code Analytics</h1>
-          <p id="reportSubtitle">Loading scan metrics...</p>
-        </div>
-        <div class="report-actions">
-          <div class="theme-toggle" aria-label="Report theme">
-            <button type="button" data-theme-option="dark" class="active" aria-pressed="true">Dark</button>
-            <button type="button" data-theme-option="light" aria-pressed="false">Light</button>
+      <section class="landing-hero" aria-label="Code analytics introduction">
+        <div class="star-field" aria-hidden="true"></div>
+        <nav class="hero-nav" aria-label="Report navigation">
+          <a id="heroBrand" class="brand-mark" href="#hero">Code Analytics</a>
+          <div class="hero-links">
+            <a href="#hero" class="active">Overview</a>
+            <a href="#analytics">Report</a>
+            <a href="#aiSummaryButton">AI Summary</a>
+            <a href="#issuesBody">Findings</a>
           </div>
-          <a id="githubLink" class="link-button" href="#" target="_blank" rel="noreferrer" hidden>Open Repository</a>
-        </div>
-      </header>
+          <div class="hero-actions">
+            <div class="theme-toggle" aria-label="Report theme">
+              <button type="button" data-theme-option="dark" class="active" aria-pressed="true">Dark</button>
+              <button type="button" data-theme-option="light" aria-pressed="false">Light</button>
+            </div>
+            <a id="githubLink" class="hero-pill" href="#" target="_blank" rel="noreferrer" hidden>Open Repository</a>
+            <a id="heroTopCta" class="hero-pill primary" href="#analytics">View Report</a>
+          </div>
+        </nav>
 
-      <section id="messagePanel" class="message-panel" hidden>
-        <strong id="messageTitle"></strong>
-        <p id="messageText"></p>
+        <div id="hero" class="hero-stage">
+          <div class="orb-wrap" aria-hidden="true">
+            <span class="orb-line left"></span>
+            <div class="glass-orb">
+              <span class="orb-shine"></span>
+              <span class="orb-arc arc-one"></span>
+              <span class="orb-arc arc-two"></span>
+            </div>
+            <span class="orb-line right"></span>
+          </div>
+
+          <div class="hero-copy-block">
+            <h1>
+              <span id="heroTitlePrefix">Code health</span>
+              <strong id="heroTitleMain">report</strong>
+              <span id="heroTitleSuffix">ready</span>
+            </h1>
+            <p id="heroSubtitle">Loading repository scan details from the browser extension.</p>
+            <div class="hero-cta-row">
+              <a id="heroPrimaryCta" class="hero-cta primary" href="#analytics">View analytics</a>
+              <a id="heroSecondaryCta" class="hero-cta" href="#aiSummaryButton">Open AI summary</a>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <section class="hero-dashboard">
+      <section id="analytics" class="analytics-section" aria-label="Repository analytics report">
+        <header class="report-header">
+          <div>
+            <p class="eyebrow">Executive Code Health Report</p>
+            <h2 id="reportTitle">Code Analytics</h2>
+            <p id="reportSubtitle">Loading scan metrics...</p>
+          </div>
+        </header>
+
+        <section id="messagePanel" class="message-panel" hidden>
+          <strong id="messageTitle"></strong>
+          <p id="messageText"></p>
+        </section>
+
+      <section class="dashboard-control-panel">
+        <div class="dashboard-mode-toggle" aria-label="Dashboard mode">
+          <button type="button" data-dashboard-mode-option="business" class="active" aria-pressed="true">Business View</button>
+          <button type="button" data-dashboard-mode-option="technical" aria-pressed="false">Technical View</button>
+        </div>
+        <div class="dashboard-signal-grid">
+          <article class="signal-card">
+            <span>Trends</span>
+            <div id="trendList" class="signal-list"></div>
+          </article>
+          <article class="signal-card">
+            <span>Alerts</span>
+            <div id="alertList" class="signal-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="hero-dashboard" data-dashboard-mode="business">
         <article class="hero-card">
           <div>
             <p class="eyebrow">Overall Position</p>
@@ -60,7 +173,7 @@
         </aside>
       </section>
 
-      <section class="insight-grid">
+      <section class="insight-grid" data-dashboard-mode="business">
         <article class="panel">
           <div class="panel-header">
             <div>
@@ -82,7 +195,7 @@
         </article>
       </section>
 
-      <section class="insight-grid">
+      <section class="insight-grid" data-dashboard-mode="business">
         <article class="panel">
           <div class="panel-header">
             <div>
@@ -104,7 +217,7 @@
         </article>
       </section>
 
-      <section class="panel ai-summary-panel">
+      <section class="panel ai-summary-panel" data-dashboard-mode="business">
         <div class="panel-header">
           <div>
             <p class="eyebrow">AI Summary</p>
@@ -143,7 +256,7 @@
         <p id="aiConfidenceNote" class="ai-confidence-note">This is optional and only runs after you click the button.</p>
       </section>
 
-      <section class="insight-grid">
+      <section class="insight-grid" data-dashboard-mode="business">
         <article class="panel">
           <div class="panel-header">
             <div>
@@ -165,7 +278,7 @@
         </article>
       </section>
 
-      <section class="details-grid operations-grid">
+      <section class="details-grid operations-grid" data-dashboard-mode="technical">
         <article class="panel">
           <div class="panel-header">
             <div>
@@ -187,7 +300,7 @@
         </article>
       </section>
 
-      <section class="panel technology-panel">
+      <section class="panel technology-panel" data-dashboard-mode="technical">
         <div class="panel-header">
           <div>
             <p class="eyebrow">Technology Mix</p>
@@ -210,7 +323,7 @@
         </div>
       </section>
 
-      <section class="details-grid">
+      <section class="details-grid" data-dashboard-mode="technical">
         <article class="panel">
           <div class="panel-header">
             <div>
@@ -232,7 +345,7 @@
         </article>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-dashboard-mode="technical">
         <div class="panel-header">
           <div>
             <p class="eyebrow">File Hotspots</p>
@@ -261,7 +374,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-dashboard-mode="technical">
         <div class="panel-header">
           <div>
             <p class="eyebrow">Folder Concentration</p>
@@ -289,11 +402,15 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-dashboard-mode="technical">
         <div class="panel-header">
           <div>
             <p class="eyebrow">Issue Drill-Down</p>
             <h2>Quality Findings</h2>
+          </div>
+          <div id="issueFilterSummary" class="filter-summary" hidden>
+            <span id="issueFilterLabel"></span>
+            <button id="clearIssueFilterButton" type="button">Clear</button>
           </div>
         </div>
         <div class="table-wrap">
@@ -315,6 +432,7 @@
           <span id="issuesPageInfo" class="pagination-info"></span>
           <button id="issuesNextButton" class="pagination-button" type="button">Next</button>
         </div>
+      </section>
       </section>
 
     </main>
