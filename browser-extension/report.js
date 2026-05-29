@@ -8,9 +8,12 @@ const FOLDER_STATS_PAGE_SIZE = 10;
 const ISSUES_PAGE_SIZE = 10;
 const REPORT_THEME_STORAGE_KEY = 'reportTheme';
 const DASHBOARD_MODE_STORAGE_KEY = 'dashboardMode';
+const SPLASH_DURATION_MS = 3200;
+const REDUCED_MOTION_SPLASH_DURATION_MS = 800;
 const params = new URLSearchParams(window.location.search);
 
 const elements = {
+  codeSplash: document.getElementById('codeSplash'),
   heroBrand: document.getElementById('heroBrand'),
   heroTitlePrefix: document.getElementById('heroTitlePrefix'),
   heroTitleMain: document.getElementById('heroTitleMain'),
@@ -92,6 +95,25 @@ const paginatedSections = {
   folderStats: { items: [], page: 1 },
   issues: { items: [], page: 1 }
 };
+
+function dismissCodeSplash() {
+  if (!elements.codeSplash) {
+    document.body.classList.remove('splash-active');
+    return;
+  }
+
+  elements.codeSplash.classList.add('is-hiding');
+  document.body.classList.remove('splash-active');
+  window.setTimeout(() => {
+    elements.codeSplash.hidden = true;
+  }, 620);
+}
+
+function initializeCodeSplash() {
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const delay = prefersReducedMotion ? REDUCED_MOTION_SPLASH_DURATION_MS : SPLASH_DURATION_MS;
+  window.setTimeout(dismissCodeSplash, delay);
+}
 
 function applyReportTheme(theme) {
   const nextTheme = theme === 'light' ? 'light' : 'dark';
@@ -1369,5 +1391,6 @@ elements.issuesNextButton.addEventListener('click', () => {
 elements.clearIssueFilterButton.addEventListener('click', clearIssueFilter);
 initializeReportTheme();
 initializeDashboardMode();
+initializeCodeSplash();
 renderAISummaryIdle();
 initializeReport();
